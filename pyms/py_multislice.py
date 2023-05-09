@@ -1873,7 +1873,7 @@ def phase_from_com(com, reg=1e-10, rsize=[1, 1]):
     to the y and x centre of mass respectively.
     """
     # Get shape of arrays
-    ny, nx = com.shape[1:]
+    ny, nx = com.shape[-2:]
     s = (ny, nx)
     s = None
 

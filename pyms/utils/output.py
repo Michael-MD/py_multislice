@@ -126,6 +126,7 @@ def save_array_as_png(array, fnam, cmap=plt.get_cmap("viridis"), vmin=None, vmax
 
 def initialize_h5_datacube_object(
     datacube_shape,
+    stem_shape,
     filename,
     dtype=_float,
     Rpix=None,
@@ -140,6 +141,9 @@ def initialize_h5_datacube_object(
 
     Returns
     -------
+    stem_data: h5py.dataset object
+        The h5 array to write STEM images to, shape and datatype will be specified by inputs
+        stem_shape and dtype.
     dcube : h5py.dataset object
         The Datacube to write to, shape and datatype will be specified by inputs
         datacube_shape and dtype.
@@ -149,6 +153,8 @@ def initialize_h5_datacube_object(
     f = h5py.File(os.path.splitext(filename)[0] + ".h5", "w")
     f.attrs["version_major"] = 0
     f.attrs["version_minor"] = 3
+    grp = f.create_group("/STEM_images")
+    stem_data = grp.create_dataset("image_array", shape=stem_shape, dtype=dtype)
     grp = f.create_group("/4DSTEM_experiment/data/diffractionslices")
     grp = f.create_group("/4DSTEM_experiment/data/realslices")
     grp = f.create_group("/4DSTEM_experiment/data/pointlists")
@@ -190,7 +196,7 @@ def initialize_h5_datacube_object(
         calibration.attrs.create("convergence_semiangle_mrad", [alpha])
     com = f.create_group("4D-STEM_data/metadata/comments")
     com.attrs.create("Note", [comments])
-    return dcube, f
+    return stem_data, dcube, f
 
 
 def datacube_to_py4DSTEM_viewable(

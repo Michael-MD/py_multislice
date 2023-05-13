@@ -1972,7 +1972,39 @@ def EFSTEM(
 
     return result
 
+def CoM(
+    STEM_images,
+    rsize=None
+): 
+    """
+    Returns centre of mass image from
+    first-moment detector. Note, we assume a COM image is 
+    obtained from pixel detector. Takes in array of STEM images
+    at various grid locations and returns image of dimensions of the
+    scan positions.
 
+    STEM_images: (scan_posns.shape, gridshape)
+        Expects array of STEM images in the shape of the scan positions
+    """
+    [scanshape_x, scanshape_y, gridshape_x, gridshape_y] = STEM_images.shape
+    scanshape = np.array([scanshape_x, scanshape_y])
+    gridshape = np.array([gridshape_x, gridshape_y])
+
+    # obtain intensity in x and y directions using first-moment detector
+    Ix = np.zeros(scanshape)
+    Iy = np.zeros(scanshape)
+    fs_x, fs_y = gridshape / rsize
+    kx = np.fft.fftfreq(gridshape_x, 1/fs_x)
+    ky = np.fft.fftfreq(gridshape_y, 1/fs_y)
+    kx, ky = np.meshgrid(kx, ky)
+    dk = 1 / np.prod(rsize)
+    # dk=1
+    for i in range(scanshape_x):
+        for j in range(scanshape_y):
+            Ix[i,j] = np.sum(STEM_images[i,j] * kx) * dk
+            Iy[i,j] = np.sum(STEM_images[i,j] * ky) * dk
+
+    return Ix, Iy
 
 def STEM_EELS_PRISM(
     structure,

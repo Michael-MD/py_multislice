@@ -664,7 +664,7 @@ def STEM_multislice(
         Number of independent multislice transmission functions generated and
         then selected from in the frozen phonon algorithm
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -1068,7 +1068,7 @@ def STEM_EELS_multislice(
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     df : float, optional
         Probe defocus
     subslices : array_like, optional
@@ -1087,7 +1087,7 @@ def STEM_EELS_multislice(
     nfph : int, optional
         Number of frozen phonon iterations.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -1095,7 +1095,7 @@ def STEM_EELS_multislice(
     dtype : torch.dtype, optional
         Datatype of the simulation arrays, by default 32-bit floating point
     ionization_cutoff : float
-        Threshhold below which the contribution of certain ionizations will be
+        threshold below which the contribution of certain ionizations will be
         ignored.
     beam_tilt : array_like, optional
         Allows the user to simulate a (small &lt; 50 mrad) beam tilt, To maintain
@@ -1176,7 +1176,7 @@ def STEM_EELS_multislice(
         &#34;device_type&#34;: device,
         &#34;return_numpy&#34;: False,
         &#34;qspace_in&#34;: True,
-        &#34;threshhold&#34;: ionization_cutoff,
+        &#34;threshold&#34;: ionization_cutoff,
         &#34;showProgress&#34;: False,
         &#34;tqposition&#34;: 1,
     }
@@ -1618,7 +1618,7 @@ def EFTEM(
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     df : float or array_like, optional
         Probe defocus, 0 by default.
     subslices : array_like, optional
@@ -1635,7 +1635,7 @@ def EFTEM(
         Number of independent multislice transmission functions generated and
         then selected from in the frozen phonon algorithm
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -1658,7 +1658,7 @@ def EFTEM(
         Pass False to disable progress readout, pass &#39;notebook&#39; to get correct
         progress bar behaviour inside a jupyter notebook
     ionization_cutoff : float
-        Threshhold below which the contribution of certain ionizations will be
+        threshold below which the contribution of certain ionizations will be
         ignored.
     Hn0 : (n,y,x) np.complex, optional
         Precalculated Hn0s ionization transition potentials, if not provided
@@ -1761,7 +1761,7 @@ def EFTEM(
                 seed=None,
                 return_numpy=True,
                 qspace_in=False,
-                threshhold=ionization_cutoff,
+                threshold=ionization_cutoff,
                 showProgress=showProgress,
                 tqposition=1,
             ),
@@ -1829,7 +1829,7 @@ def STEM_EELS_PRISM(
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     nfph : int,optional
         Number of frozen phonon iterations default is 5
     df : float,optional
@@ -1856,7 +1856,7 @@ def STEM_EELS_PRISM(
         for scanning transmission electron microscopy.&#34; Advanced structural
         and chemical imaging 3.1 (2017): 13 for details on this.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -2419,7 +2419,7 @@ shell, 2 for L shell etc.)</dd>
 <dd>orbital angular momentum quantum number of hte bound transition of
 interest</dd>
 <dt><strong><code>epsilon</code></strong> :&ensp;<code>float</code></dt>
-<dd>Energy above ionization threshhold energy</dd>
+<dd>Energy above ionization threshold energy</dd>
 <dt><strong><code>df</code></strong> :&ensp;<code>float</code> or <code>array_like</code>, optional</dt>
 <dd>Probe defocus, 0 by default.</dd>
 <dt><strong><code>subslices</code></strong> :&ensp;<code>array_like</code>, optional</dt>
@@ -2436,7 +2436,7 @@ calculations will run on</dd>
 <dd>Number of independent multislice transmission functions generated and
 then selected from in the frozen phonon algorithm</dd>
 <dt><strong><code>contr</code></strong> :&ensp;<code>float</code>, optional</dt>
-<dd>A threshhold for inclusion of ionization transitions within the
+<dd>A threshold for inclusion of ionization transitions within the
 calculation, if contr = 1.0 all ionization transitions will be inlcuded
 in the simulation otherwise only the transitions that make up a
 fraction equal to contr of the total ionization transitions will be
@@ -2459,7 +2459,7 @@ an unaberrated probe.</dd>
 <dd>Pass False to disable progress readout, pass 'notebook' to get correct
 progress bar behaviour inside a jupyter notebook</dd>
 <dt><strong><code>ionization_cutoff</code></strong> :&ensp;<code>float</code></dt>
-<dd>Threshhold below which the contribution of certain ionizations will be
+<dd>threshold below which the contribution of certain ionizations will be
 ignored.</dd>
 <dt><strong><code>Hn0</code></strong> :&ensp;<code>(n,y,x) np.complex</code>, optional</dt>
 <dd>Precalculated Hn0s ionization transition potentials, if not provided
@@ -2533,7 +2533,7 @@ defocus series will be provided.</dd>
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     df : float or array_like, optional
         Probe defocus, 0 by default.
     subslices : array_like, optional
@@ -2550,7 +2550,7 @@ defocus series will be provided.</dd>
         Number of independent multislice transmission functions generated and
         then selected from in the frozen phonon algorithm
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -2573,7 +2573,7 @@ defocus series will be provided.</dd>
         Pass False to disable progress readout, pass &#39;notebook&#39; to get correct
         progress bar behaviour inside a jupyter notebook
     ionization_cutoff : float
-        Threshhold below which the contribution of certain ionizations will be
+        threshold below which the contribution of certain ionizations will be
         ignored.
     Hn0 : (n,y,x) np.complex, optional
         Precalculated Hn0s ionization transition potentials, if not provided
@@ -2676,7 +2676,7 @@ defocus series will be provided.</dd>
                 seed=None,
                 return_numpy=True,
                 qspace_in=False,
-                threshhold=ionization_cutoff,
+                threshold=ionization_cutoff,
                 showProgress=showProgress,
                 tqposition=1,
             ),
@@ -3095,7 +3095,7 @@ shell, 2 for L shell etc.)</dd>
 <dd>orbital angular momentum quantum number of hte bound transition of
 interest</dd>
 <dt><strong><code>epsilon</code></strong> :&ensp;<code>float</code></dt>
-<dd>Energy above ionization threshhold energy</dd>
+<dd>Energy above ionization threshold energy</dd>
 <dt><strong><code>nfph</code></strong> :&ensp;<code>int</code>,optional</dt>
 <dd>Number of frozen phonon iterations default is 5</dd>
 <dt><strong><code>df</code></strong> :&ensp;<code>float</code>,optional</dt>
@@ -3122,7 +3122,7 @@ calculations see Ophus, Colin. "A fast image simulation algorithm
 for scanning transmission electron microscopy." Advanced structural
 and chemical imaging 3.1 (2017): 13 for details on this.</dd>
 <dt><strong><code>contr</code></strong> :&ensp;<code>float</code>, optional</dt>
-<dd>A threshhold for inclusion of ionization transitions within the
+<dd>A threshold for inclusion of ionization transitions within the
 calculation, if contr = 1.0 all ionization transitions will be inlcuded
 in the simulation otherwise only the transitions that make up a
 fraction equal to contr of the total ionization transitions will be
@@ -3207,7 +3207,7 @@ optimization</dd>
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     nfph : int,optional
         Number of frozen phonon iterations default is 5
     df : float,optional
@@ -3234,7 +3234,7 @@ optimization</dd>
         for scanning transmission electron microscopy.&#34; Advanced structural
         and chemical imaging 3.1 (2017): 13 for details on this.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -3537,7 +3537,7 @@ shell, 2 for L shell etc.)</dd>
 <dd>orbital angular momentum quantum number of hte bound transition of
 interest</dd>
 <dt><strong><code>epsilon</code></strong> :&ensp;<code>float</code></dt>
-<dd>Energy above ionization threshhold energy</dd>
+<dd>Energy above ionization threshold energy</dd>
 <dt><strong><code>df</code></strong> :&ensp;<code>float</code>, optional</dt>
 <dd>Probe defocus</dd>
 <dt><strong><code>subslices</code></strong> :&ensp;<code>array_like</code>, optional</dt>
@@ -3556,7 +3556,7 @@ then selected from in the frozen phonon algorithm</dd>
 <dt><strong><code>nfph</code></strong> :&ensp;<code>int</code>, optional</dt>
 <dd>Number of frozen phonon iterations.</dd>
 <dt><strong><code>contr</code></strong> :&ensp;<code>float</code>, optional</dt>
-<dd>A threshhold for inclusion of ionization transitions within the
+<dd>A threshold for inclusion of ionization transitions within the
 calculation, if contr = 1.0 all ionization transitions will be inlcuded
 in the simulation otherwise only the transitions that make up a
 fraction equal to contr of the total ionization transitions will be
@@ -3564,7 +3564,7 @@ included</dd>
 <dt><strong><code>dtype</code></strong> :&ensp;<code>torch.dtype</code>, optional</dt>
 <dd>Datatype of the simulation arrays, by default 32-bit floating point</dd>
 <dt><strong><code>ionization_cutoff</code></strong> :&ensp;<code>float</code></dt>
-<dd>Threshhold below which the contribution of certain ionizations will be
+<dd>threshold below which the contribution of certain ionizations will be
 ignored.</dd>
 <dt><strong><code>beam_tilt</code></strong> :&ensp;<code>array_like</code>, optional</dt>
 <dd>Allows the user to simulate a (small &lt; 50 mrad) beam tilt, To maintain
@@ -3656,7 +3656,7 @@ will mean that these are calculated within the routine.</dd>
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     df : float, optional
         Probe defocus
     subslices : array_like, optional
@@ -3675,7 +3675,7 @@ will mean that these are calculated within the routine.</dd>
     nfph : int, optional
         Number of frozen phonon iterations.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -3683,7 +3683,7 @@ will mean that these are calculated within the routine.</dd>
     dtype : torch.dtype, optional
         Datatype of the simulation arrays, by default 32-bit floating point
     ionization_cutoff : float
-        Threshhold below which the contribution of certain ionizations will be
+        threshold below which the contribution of certain ionizations will be
         ignored.
     beam_tilt : array_like, optional
         Allows the user to simulate a (small &lt; 50 mrad) beam tilt, To maintain
@@ -3764,7 +3764,7 @@ will mean that these are calculated within the routine.</dd>
         &#34;device_type&#34;: device,
         &#34;return_numpy&#34;: False,
         &#34;qspace_in&#34;: True,
-        &#34;threshhold&#34;: ionization_cutoff,
+        &#34;threshold&#34;: ionization_cutoff,
         &#34;showProgress&#34;: False,
         &#34;tqposition&#34;: 1,
     }
@@ -4378,7 +4378,7 @@ and frozen phonon passes. Useful for testing purposes</dd>
 <dd>Number of independent multislice transmission functions generated and
 then selected from in the frozen phonon algorithm</dd>
 <dt><strong><code>contr</code></strong> :&ensp;<code>float</code>, optional</dt>
-<dd>A threshhold for inclusion of ionization transitions within the
+<dd>A threshold for inclusion of ionization transitions within the
 calculation, if contr = 1.0 all ionization transitions will be inlcuded
 in the simulation otherwise only the transitions that make up a
 fraction equal to contr of the total ionization transitions will be
@@ -4555,7 +4555,7 @@ of the specimen phase from the centre-of-mass STEM images.</dd>
         Number of independent multislice transmission functions generated and
         then selected from in the frozen phonon algorithm
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be

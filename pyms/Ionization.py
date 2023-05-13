@@ -26,6 +26,7 @@ from .utils.torch_utils import (
     fourier_shift_torch,
     get_device,
 )
+import pyms
 
 # List of letters for each orbital, used to convert between orbital angular
 # momentum quantum number ell and letter
@@ -84,7 +85,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     ell : int
         Target orbital angular momentum quantum number
     epsilon : Optional
-        Energy of continuum wavefunction, ie energy above ionization threshhold
+        Energy of continuum wavefunction, ie energy above ionization threshold
     eV : float
         Probe energy in electron volts
     gridshape : (2,) array_like
@@ -95,7 +96,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
         Largest change in orbital angular momentum quantum number, order = 1
         gives all dipole terms, order = 2 gives all quadropole terms etc.
     contr : float,optional
-        Threshhold for rejection of ionization transition potential, eg. if
+        threshold for rejection of ionization transition potential, eg. if
         contr == 0.95 an individual transition is rejected if it would
         contribute less than 5 % to the total signal
     """
@@ -144,7 +145,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
 
     tot = np.sum(np.square(np.abs(transition_potentials)))
 
-    # Reject orbitals which fall below the user-supplied threshhold
+    # Reject orbitals which fall below the user-supplied threshold
     return np.stack(
         [
             Hn0
@@ -513,7 +514,7 @@ def transition_potential(
     # only non-zero for certain values of lprimeprime:
     # |l-lprime|<=lprimeprime<=|l+lprime|
     lprimeprimes = np.arange(
-        np.abs(ell - lprime), np.abs(ell + lprime) + 1, dtype=pyms.int
+        np.abs(ell - lprime), np.abs(ell + lprime) + 1, dtype=pyms._int
     )
     if lprimeprimes.shape[0] < 1:
         return None
@@ -521,7 +522,7 @@ def transition_potential(
     for lprimeprime in lprimeprimes:
         jq = None
         # Set of projection quantum numbers
-        mlprimeprimes = np.arange(-lprimeprime, lprimeprime + 1, dtype=pyms.int)
+        mlprimeprimes = np.arange(-lprimeprime, lprimeprime + 1, dtype=pyms._int)
 
         # Non mlprimeprime dependent part of prefactor from Eq (13) from
         # Dwyer Ultramicroscopy 104 (2005) 141-151
@@ -598,7 +599,7 @@ def transition_potential_multislice(
     qspace_out=True,
     posn=None,
     image_CTF=None,
-    threshhold=1e-4,
+    threshold=1e-4,
     showProgress=True,
     tqposition=0,
 ):
@@ -650,7 +651,7 @@ def transition_potential_multislice(
     nsubslices = len(subslices)
 
     # Get grid shape
-    gridshape = np.asarray(transmission_functions.size()[-3:-1])
+    gridshape = np.asarray(transmission_functions.size())[[-2,-1]]
 
     # Total number of slices in multislice
     niterations = nslices * nsubslices
@@ -673,27 +674,26 @@ def transition_potential_multislice(
 
     # If Fourier space probes are passed, inverse Fourier transform them
     if qspace_in:
-        probes = torch.ifft(probes, signal_ndim=2)
+        probes = torch.fft.ifft2(probes)
 
-    # Calculate threshholds below which an ionization will not be included in
+    # Calculate thresholds below which an ionization will not be included in
     # the simulation.
-    if threshhold is not None:
+    if threshold is not None:
         trigger = np.zeros(ionization_potentials.shape[0])
         for i, ionization_potential in enumerate(ionization_potentials):
-            trigger[i] = threshhold * torch.sum(amplitude(ionization_potential))
+            trigger[i] = threshold * torch.sum(amplitude(ionization_potential))
 
     # Ionization potentials must be in reciprocal space
-    ionization_potentials = fft(ionization_potentials, signal_ndim=2)
+    ionization_potentials = torch.fft.fft2(ionization_potentials)
 
     # Output array
     from .utils.torch_utils import size_of_bandwidth_limited_array
 
     nprobes = probes.size(0)
-    gridout = size_of_bandwidth_limited_array(probes.shape[-3:-1])
     if image_CTF is None:
-        output = torch.zeros(nprobes, *gridout, device=device, dtype=dtype)
+        output = torch.zeros(nprobes, *gridshape, device=device, dtype=dtype)
     else:
-        output = torch.zeros(image_CTF.shape[0], *gridout, device=device, dtype=dtype)
+        output = torch.zeros(image_CTF.shape[0], *gridshape, device=device, dtype=dtype)
 
     # Loop over slices of specimens
     for i in tqdm(
@@ -728,9 +728,9 @@ def transition_potential_multislice(
                 psi_n = Hn0 * probes
 
                 # Only propagate this wave to the exit surface if it is deemed
-                # to contribute significantly (above a user-determined threshhold)
-                # to the image. Pass threshhold = None to disable this feature
-                if threshhold is not None:
+                # to contribute significantly (above a user-determined threshold)
+                # to the image. Pass threshold = None to disable this feature
+                if threshold is not None:
                     if torch.sum(amplitude(psi_n)) < trigger[j]:
                         continue
 
@@ -744,6 +744,7 @@ def transition_potential_multislice(
                     qspace_out=True,
                     subslicing=True,
                     return_numpy=False,
+                    output_to_bandwidth_limit=False,
                 )
 
                 # Perform imaging if requested, otherwise just accumulate diffraction
@@ -751,7 +752,7 @@ def transition_potential_multislice(
                 if image_CTF is None:
                     output += amplitude(psi_n)
                 else:
-                    output += amplitude(torch.ifft(psi_n * image_CTF, signal_ndim=2))
+                    output += amplitude(torch.fft.ifft2(psi_n * image_CTF))
 
         # Propagate probe one slice
         if i < niterations - 1:

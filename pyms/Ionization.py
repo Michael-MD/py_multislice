@@ -26,7 +26,9 @@ from .utils.torch_utils import (
     fourier_shift_torch,
     get_device,
 )
+
 import pyms
+from pyms import atomic_symbol
 
 # List of letters for each orbital, used to convert between orbital angular
 # momentum quantum number ell and letter
@@ -121,7 +123,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     )
 
     # Now generate the bound_orbital object using pfac
-    bound_orbital = orbital(Z, orbital_configuration, n, ell)
+    bound_orbital = orbital(Z, orbital_configuration, n, ell, target_orbital_string)
 
     qnumberset = get_q_numbers_for_transition(bound_orbital.ell, order)
 
@@ -133,7 +135,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
 
         # Generate orbital for excited state using pfac
         excited_state = orbital(
-            bound_orbital.Z, excited_configuration, 0, lprime, epsilon
+            bound_orbital.Z, excited_configuration, 0, lprime, epsilon, target_orbital_string
         )
 
         # Calculate transition potential for this escited state
@@ -164,7 +166,7 @@ class orbital:
     store the necessary information about the radial electron wave function.
     """
 
-    def __init__(self, Z: int, config: str, n: int, ell: int, epsilon=1):
+    def __init__(self, Z: int, config: str, n: int, ell: int, epsilon=1, target_orbital_string=None):
         """
         Initialize the orbital class and return an orbital object.
 
@@ -195,6 +197,123 @@ class orbital:
             assert epsilon > 0, "Energy of continuum electron must be > 0"
             self.epsilon = epsilon
 
+        try:
+            import pfac.fac
+            self.from_pfac(Z, config, n, ell, epsilon)
+            self.ref = 'pfac'
+        except ImportError:
+            self.from_orb(Z, config, n, ell, epsilon, target_orbital_string)
+            self.ref = 'orb'
+
+    def from_orb(self, Z, config, n, ell, epsilon, target_orbital_string):
+        f = open(f'orb files/{atomic_symbol[Z]}_{target_orbital_string}.orb', 'r')
+
+        ionization_energy_thres = float(f.readline())   # Ionization Threshold Energy
+        J = int(f.readline())                           # Angular momentum of bound state
+
+        # Read in bound wvfn
+        N = 2_000 # Length of sequence
+        Pnl = np.zeros(N)
+        for i in range(0, N):
+            Pnl[i] = f.readline()
+
+        from scipy.interpolate import interp1d
+        if n > 0:
+            # bound wvfn
+            self.r = np.array(range(2_000))*0.0015
+            self.__wfn = interp1d(self.r, Pnl, 'quadratic', fill_value=0, bounds_error=False)
+        else:
+            # continuum wvfn
+            lpr = ell
+            self.r = np.array(range(20_000))*0.0015
+            # Read in potentials
+            N = 10_000 # Length of sequence
+            V = np.zeros(N)
+            for i in range(0, N):
+                V[i] = f.readline()
+            V = np.array(V)
+
+            # continuum wvfn
+            eps=epsilon/13.6
+            N = 20_000
+            V_ext = np.empty(N)
+            V_ext[0:10_000] = V
+
+            h = 0.0015
+            # remainder of potential away from atom
+            V_ext[10_000:] = -2 / np.linspace(10_001, N, 10_000) / h
+            g = lambda n: -lpr*(lpr+1)/((n*h)**2) - V_ext[n] + eps
+
+            P = np.empty(N)
+            P[0] = 0
+            P[1] = h**(lpr+1)
+
+            h212 = h**2 / 12
+            P[2] = 2*P[1]*(1-5*h212*g(1))
+            P[2] /= 1+h212*g(2)
+            for nn in range(3,N):
+                P[nn] = 2*P[nn-1]*(1-5*h212*g(nn-1)) - P[nn-2]*(1+h212*g(nn-2))
+                P[nn] /= (1+h212*g(nn))
+
+            # normalization
+            r0 = self.r[np.argmax(P)]
+            A = 1-(1/(2*eps*r0))*(1-5/(4*eps*r0)-lpr*(lpr+1)/(2*r0))
+            norm = A/(np.max(P)*np.sqrt(np.pi)*(eps)**.25)
+
+            P_orb = P*norm
+
+            """
+            Since continuum wvfn is periodic far from the atom we can extrapolate
+            by sampling from a cosine.
+            """
+            self.P_orb_inside = interp1d(self.r, P_orb, 'quadratic')
+
+
+
+            def fit_sin(tt, yy):
+                '''Fit sin to the input time sequence, and return fitting parameters "amp", "omega", "phase", "offset", "freq", "period" and "fitfunc"'''
+                tt = np.array(tt)
+                yy = np.array(yy)
+                ff = np.fft.fftfreq(len(tt), (tt[1]-tt[0]))   # assume uniform spacing
+                Fyy = abs(np.fft.fft(yy))
+                guess_freq = abs(ff[np.argmax(Fyy[1:])+1])   # excluding the zero frequency "peak", which is related to offset
+                guess_amp = np.std(yy) * 2.**0.5
+                guess_offset = np.mean(yy)
+                guess = np.array([guess_amp, 2.*np.pi*guess_freq, 0., guess_offset])
+
+                def sinfunc(t, A, w, p, c):  return A * np.sin(w*t + p) + c
+                import numpy, scipy.optimize
+                popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess)
+                A, w, p, c = popt
+                return lambda t: sinfunc(t, A, w, p, c)
+
+            self.P_orb_outside  = fit_sin(self.r[int(len(self.r)/2):], P_orb[int(len(self.r)/2):])
+           
+            # def P_orb_outside(r):
+
+
+            #     return r*0
+            # self.P_orb_outside = P_orb_outside
+
+            def wvfn(r):
+                # evaluates wvfn in interpolated and extrapolated regions
+                mask_out = r > np.max(self.r)   # all points outside interpolation region
+                mask_in = r <= np.max(self.r)
+                r_outside = r[mask_out]
+                r_inside = r[mask_in]
+
+                P_inside = self.P_orb_inside(r_inside)
+                P_outside = self.P_orb_outside(r_outside)
+
+                s = np.empty(len(r))
+                s[mask_in] = P_inside
+                s[mask_out] = P_outside
+
+                return s
+            
+            self.__wfn = wvfn
+
+    def from_pfac(self, Z, config, n, ell, epsilon):
         # Use pfac (Python flexible atomic code) interface to
         # communicate with underlying fac code
         import pfac.fac
@@ -290,6 +409,9 @@ class orbital:
 
     def __call__(self, r):
         """Evaluate radial wavefunction on grid r from tabulated values."""
+        if self.ref == 'orb':
+            return self.__wfn(r)
+
         is_arr = isinstance(r, np.ndarray)
 
         if is_arr:
@@ -339,6 +461,7 @@ class orbital:
             return wvfn
         else:
             return wvfn[0]
+
 
     def plot(self, grid=None, show=True, ylim=None, fig=None, plotkwargs={}):
         """Plot wavefunction at positions given by grid r in Bohr radii."""

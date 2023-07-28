@@ -219,7 +219,7 @@ class orbital:
         if n > 0:
             # bound wvfn
             self.r = np.array(range(2_000))*0.0015
-            self.__wfn = interp1d(self.r, Pnl, 'quadratic')
+            self.__wfn = interp1d(self.r, Pnl, 'quadratic', fill_value=0, bounds_error=False)
         else:
             # continuum wvfn
             lpr = ell

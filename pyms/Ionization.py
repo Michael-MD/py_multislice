@@ -253,15 +253,63 @@ class orbital:
                 P[nn] = 2*P[nn-1]*(1-5*h212*g(nn-1)) - P[nn-2]*(1+h212*g(nn-2))
                 P[nn] /= (1+h212*g(nn))
 
-            # normalisation
+            # normalization
             r0 = self.r[np.argmax(P)]
             A = 1-(1/(2*eps*r0))*(1-5/(4*eps*r0)-lpr*(lpr+1)/(2*r0))
             norm = A/(np.max(P)*np.sqrt(np.pi)*(eps)**.25)
 
             P_orb = P*norm
 
+            """
+            Since continuum wvfn is periodic far from the atom we can extrapolate
+            by sampling from a cosine.
+            """
+            self.P_orb_inside = interp1d(self.r, P_orb, 'quadratic')
+
+
+
+            def fit_sin(tt, yy):
+                '''Fit sin to the input time sequence, and return fitting parameters "amp", "omega", "phase", "offset", "freq", "period" and "fitfunc"'''
+                tt = np.array(tt)
+                yy = np.array(yy)
+                ff = np.fft.fftfreq(len(tt), (tt[1]-tt[0]))   # assume uniform spacing
+                Fyy = abs(np.fft.fft(yy))
+                guess_freq = abs(ff[np.argmax(Fyy[1:])+1])   # excluding the zero frequency "peak", which is related to offset
+                guess_amp = np.std(yy) * 2.**0.5
+                guess_offset = np.mean(yy)
+                guess = np.array([guess_amp, 2.*np.pi*guess_freq, 0., guess_offset])
+
+                def sinfunc(t, A, w, p, c):  return A * np.sin(w*t + p) + c
+                import numpy, scipy.optimize
+                popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess)
+                A, w, p, c = popt
+                return lambda t: sinfunc(t, A, w, p, c)
+
+            self.P_orb_outside  = fit_sin(self.r[int(len(self.r)/2):], P_orb[int(len(self.r)/2):])
+           
+            # def P_orb_outside(r):
+
+
+            #     return r*0
+            # self.P_orb_outside = P_orb_outside
+
+            def wvfn(r):
+                # evaluates wvfn in interpolated and extrapolated regions
+                mask_out = r > np.max(self.r)   # all points outside interpolation region
+                mask_in = r <= np.max(self.r)
+                r_outside = r[mask_out]
+                r_inside = r[mask_in]
+
+                P_inside = self.P_orb_inside(r_inside)
+                P_outside = self.P_orb_outside(r_outside)
+
+                s = np.empty(len(r))
+                s[mask_in] = P_inside
+                s[mask_out] = P_outside
+
+                return s
             
-            self.__wfn = interp1d(self.r, P_orb, 'quadratic')
+            self.__wfn = wvfn
 
     def from_pfac(self, Z, config, n, ell, epsilon):
         # Use pfac (Python flexible atomic code) interface to

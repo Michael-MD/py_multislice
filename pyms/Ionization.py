@@ -108,6 +108,8 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     # Free configuration is the bound orbital with one less electron, find this
     # orbital in the string and parse its current filling
     target_orbital_string = str(n) + orbitals[ell]
+    target_orbital_str = str(n) + orbitals[ell]
+
     current_filling = int(
         re.search(target_orbital_string + "([0-9]+)", orbital_configuration).group(1)
     )
@@ -123,7 +125,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     )
 
     # Now generate the bound_orbital object using pfac
-    bound_orbital = orbital(Z, orbital_configuration, n, ell, target_orbital_string)
+    bound_orbital = orbital(Z, orbital_configuration, n, ell, target_orbital_string=str(n) + orbitals[ell])
 
     qnumberset = get_q_numbers_for_transition(bound_orbital.ell, order)
 
@@ -135,7 +137,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
 
         # Generate orbital for excited state using pfac
         excited_state = orbital(
-            bound_orbital.Z, excited_configuration, 0, lprime, epsilon, target_orbital_string
+            bound_orbital.Z, excited_configuration, 0, lprime, epsilon, target_orbital_string=str(n) + orbitals[ell]
         )
 
         # Calculate transition potential for this escited state
@@ -208,7 +210,10 @@ class orbital:
     def from_orb(self, Z, config, n, ell, epsilon, target_orbital_string):
         f = open(f'orb files/{atomic_symbol[Z]}_{target_orbital_string}.orb', 'r')
 
-        ionization_energy_thres = float(f.readline())   # Ionization Threshold Energy
+        self.energy = -float(f.readline())               # Ionization Threshold Energy
+        if n != 0:
+            self.energy = epsilon
+
         J = int(f.readline())                           # Angular momentum of bound state
 
         # Read in bound wvfn
@@ -222,6 +227,7 @@ class orbital:
             # bound wvfn
             self.r = np.array(range(2_000))*0.0015
             self.__wfn = interp1d(self.r, Pnl, 'quadratic', fill_value=0, bounds_error=False)
+            self.ilast = 2_000
         else:
             # continuum wvfn
             lpr = ell
@@ -288,14 +294,9 @@ class orbital:
                 return lambda t: sinfunc(t, A, w, p, c)
 
             self.P_orb_outside  = fit_sin(self.r[int(len(self.r)/2):], P_orb[int(len(self.r)/2):])
-           
-            # def P_orb_outside(r):
-
-
-            #     return r*0
-            # self.P_orb_outside = P_orb_outside
 
             def wvfn(r):
+                r = np.squeeze([r])
                 # evaluates wvfn in interpolated and extrapolated regions
                 mask_out = r > np.max(self.r)   # all points outside interpolation region
                 mask_in = r <= np.max(self.r)
@@ -305,13 +306,14 @@ class orbital:
                 P_inside = self.P_orb_inside(r_inside)
                 P_outside = self.P_orb_outside(r_outside)
 
-                s = np.empty(len(r))
+                s = np.empty(r.shape)
                 s[mask_in] = P_inside
                 s[mask_out] = P_outside
 
                 return s
             
             self.__wfn = wvfn
+            self.ilast = 20_000
 
     def from_pfac(self, Z, config, n, ell, epsilon):
         # Use pfac (Python flexible atomic code) interface to

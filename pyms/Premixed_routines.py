@@ -139,7 +139,7 @@ def STEM_PRISM(
         an unaberrated probe.
     batch_size : int, optional
         The multislice algorithm can be performed on multiple scattering matrix
-        columns at once to parrallelize computation, this number is set by
+        columns at once to parallelize computation, this number is set by
         batch_size.
     fourD_STEM : bool or array_like, optional
         Pass fourD_STEM = True to perform 4D-STEM simulations. To save disk
@@ -587,7 +587,7 @@ def STEM_multislice(
         controlled by the df parameter)
     batch_size : int, optional
         The multislice algorithm can be performed on multiple probes columns
-        at once to parrallelize computation, the number of parrallel computations
+        at once to parallelize computation, the number of parallel computations
         is set by batch_size.
     fourD_STEM : bool or array_like, optional
         Pass fourD_STEM = True to perform 4D-STEM simulations. To save disk
@@ -609,7 +609,7 @@ def STEM_multislice(
     DPC : bool
         Set to True to simulate centre-of-mass differential phase contrast (DPC)
         STEM imaging. The centre of mass images will be added to the STEM_images
-        output and the differential phase contrast reconstrutions from these
+        output and the differential phase contrast reconstructions from these
         images will be outputted seperately in the results dictionary
     scan_posn :  (ny,nx,2) array_like, optional
         An array containing y and x scan positions in the final dimension for
@@ -689,7 +689,7 @@ def STEM_multislice(
     result : dict
         Can contain up to three entries with keys 'STEM images' which is the
         conventional STEM images simulated, 'datacube' which is a 4D-STEM
-        datacube, 'PACBED' which is the postion averaged convergent beam
+        datacube, 'PACBED' which is the position averaged convergent beam
         electron diffraction pattern and 'DPC' which are the reconstructions
         of the specimen phase from the centre-of-mass STEM images.
     """
@@ -1048,7 +1048,7 @@ def STEM_EELS_multislice(
     app : float
         Objective aperture in mrad
     detector_ranges : array_like
-        The maxmimum acceptance angles of each of the spectrometer apertures
+        The maximum acceptance angles of each of the spectrometer apertures
         should be stored as in an array: ie [10,20] will make two detectors
         spanning 0 to 10 mrad and 0 to 20 mrad.
     thicknesses : float or array_like
@@ -1320,7 +1320,7 @@ def CBED(
     # Choose GPU if available and CPU if not
     device = get_device(device_type)
 
-    # Make propagators and transmission functions for multslice
+    # Make propagators and transmission functions for multislice
     if P is None and T is None:
         P, T = multislice_precursor(
             structure,

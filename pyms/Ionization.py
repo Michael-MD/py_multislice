@@ -354,7 +354,12 @@ class orbital:
             self.from_pfac(Z, config, n, ell, epsilon)
             return
 
-        ionization_energy_thres = float(f.readline())   # Ionization Threshold Energy
+        energy = float(f.readline())
+        if n == 0:
+            self.energy = epsilon
+        else:
+            self.energy = -energy 
+
         J = int(f.readline())                           # Angular momentum of bound state
 
         # Read in bound wvfn

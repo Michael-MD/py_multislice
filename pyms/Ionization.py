@@ -348,7 +348,12 @@ class orbital:
             nn = n
 
         angmom = ["s", "p", "d", "f"][ell]
-        f = open(f'orb files/{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb', 'r')
+        try:
+            f = open(f'orb files/{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb', 'r')
+        except FileNotFoundError:
+            self.from_pfac(*args, **kwargs)
+            return
+        
         ionization_energy_thres = float(f.readline())   # Ionization Threshold Energy
         J = int(f.readline())                           # Angular momentum of bound state
 

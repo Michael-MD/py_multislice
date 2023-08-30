@@ -336,7 +336,7 @@ class orbital:
         """
         if n == 0:
             if pyms.full_orbital_filling(self.Z) == config:
-                self.from_pfac(*args, **kwargs)
+                self.from_pfac(Z, config, n, ell, epsilon)
                 return
 
             # Check which electron is missing, assumes only one electron is missing
@@ -351,9 +351,9 @@ class orbital:
         try:
             f = open(f'orb files/{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb', 'r')
         except FileNotFoundError:
-            self.from_pfac(*args, **kwargs)
+            self.from_pfac(Z, config, n, ell, epsilon)
             return
-        
+
         ionization_energy_thres = float(f.readline())   # Ionization Threshold Energy
         J = int(f.readline())                           # Angular momentum of bound state
 

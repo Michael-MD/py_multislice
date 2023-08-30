@@ -164,8 +164,14 @@ class orbital:
     electron using the flexible atomic code (fac) atomic structure code and
     store the necessary information about the radial electron wave function.
     """
+    def __init__(self, Z: int, config: str, n: int, ell: int, epsilon=1, pref='orb'):
+        self.pref=pref
+        if pref == 'orb':
+            self.from_orb(Z, config, n, ell, epsilon)
+        else:
+            self.from_pfac(Z, config, n, ell, epsilon)
 
-    def __init__(self, Z: int, config: str, n: int, ell: int, epsilon=1):
+    def from_pfac(self, Z: int, config: str, n: int, ell: int, epsilon=1):
         """
         Initialize the orbital class and return an orbital object.
 
@@ -185,6 +191,7 @@ class orbital:
             Energy of continuum wavefunction in eV (only matters if n == 0)
         """
         # Load arguments into orbital object
+        self.pref = 'pfac'
         self.Z = Z
         self.config = config
         self.n = n
@@ -289,7 +296,167 @@ class orbital:
             table[: self.ilast, 1], table[: self.ilast, 4], kind="cubic", fill_value=0
         )
 
+    def from_orb(self, Z: int, config: str, n: int, ell: int, epsilon=1):
+        """
+        Initialize the orbital class and return an orbital object.
+
+        Parameters
+        ----------
+        Z : int
+            Atomic number
+        config : str
+            String describing configuration of atom ie:
+            carbon (C): config = '1s2 2s2 2p2'
+        n : int
+            Principal quantum number of orbital, for continuum wavefunctions
+            pass n=0
+        ell : int
+            Orbital angular momentum quantum number of orbital
+        epsilon : Optional, float
+            Energy of continuum wavefunction in eV (only matters if n == 0)
+        """
+        # Load arguments into orbital object
+        self.pref = 'orb'
+        self.Z = Z
+        self.config = config
+        self.n = n
+        self.ell = ell
+        assert ell > -1, (
+            "Angular momentum quantum number ell = " + str(ell) + ". Must be > 0"
+        )
+        if self.n == 0:
+            assert epsilon > 0, "Energy of continuum electron must be > 0"
+            self.epsilon = epsilon
+
+        # Get ionized shell
+        """
+        Pfac has the capability of calculating the continuum wave function from an atom with a full shell.
+        So we check if a shell some electrons and find the appropriate orb file. If all shells are full then 
+        no orb file is appropritate.
+        """
+        if n == 0:
+            if pyms.full_orbital_filling(self.Z) == config:
+                self.from_pfac(*args, **kwargs)
+                return
+
+            # Check which electron is missing, assumes only one electron is missing
+            for nn, (full, missing) in enumerate(zip(pyms.full_orbital_filling(self.Z).split(), config.split())):
+                if full != missing:
+                    nn+=1
+                    break
+        else:
+            nn = n
+
+        angmom = ["s", "p", "d", "f"][ell]
+        f = open(f'orb files/{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb', 'r')
+        ionization_energy_thres = float(f.readline())   # Ionization Threshold Energy
+        J = int(f.readline())                           # Angular momentum of bound state
+
+        # Read in bound wvfn
+        N = 2_000 # Length of sequence
+        Pnl = np.zeros(N)
+        for i in range(0, N):
+            Pnl[i] = f.readline()
+
+        from scipy.interpolate import interp1d
+
+        # Return bound wave function
+        if n > 0:
+            self.r = np.array(range(2_000))*0.0015
+            # Interpolate quadratically and extrapolate with zeros
+            self.ilast = N
+            self.__wfn = interp1d(self.r, Pnl, 'quadratic', fill_value=0, bounds_error=False)
+            return
+
+        # continuum wvfn
+        lpr = ell
+        self.r = np.array(range(20_000))*0.0015
+        # Read in potentials
+        N = 10_000 # Length of sequence
+        V = np.zeros(N)
+        for i in range(0, N):
+            V[i] = f.readline()
+        V = np.array(V)
+
+        eps=epsilon/13.6
+        N = 20_000
+        V_ext = np.empty(N)
+        V_ext[0:10_000] = V
+
+        h = 0.0015
+        # remainder of potential away from atom
+        V_ext[10_000:] = -2 / np.linspace(10_001, N, 10_000) / h
+        g = lambda n: -lpr*(lpr+1)/((n*h)**2) - V_ext[n] + eps
+
+        P = np.empty(N)
+        P[0] = 0
+        P[1] = h**(lpr+1)
+
+        h212 = h**2 / 12
+        P[2] = 2*P[1]*(1-5*h212*g(1))
+        P[2] /= 1+h212*g(2)
+        for nn in range(3,N):
+            P[nn] = 2*P[nn-1]*(1-5*h212*g(nn-1)) - P[nn-2]*(1+h212*g(nn-2))
+            P[nn] /= (1+h212*g(nn))
+
+        # normalisation
+        r0 = self.r[np.argmax(P)]
+        A = 1-(1/(2*eps*r0))*(1-5/(4*eps*r0)-lpr*(lpr+1)/(2*r0))
+        norm = A/(np.max(P)*np.sqrt(np.pi)*(eps)**.25)
+
+        P_orb = P*norm
+
+        self.ilast = 2000-1
+
+        """
+        Since continuum wvfn is periodic far from the atom we can extrapolate
+        by sampling from a cosine.
+        """
+        self.P_orb_inside = interp1d(self.r, P_orb, 'quadratic')
+
+
+
+        def fit_sin(tt, yy):
+            # Fit sin to the input time sequence, and return "fitfunc"
+            tt = np.array(tt)
+            yy = np.array(yy)
+            ff = np.fft.fftfreq(len(tt), (tt[1]-tt[0]))   # assume uniform spacing
+            Fyy = abs(np.fft.fft(yy))
+            guess_freq = abs(ff[np.argmax(Fyy[1:])+1])   # excluding the zero frequency "peak", which is related to offset
+            guess_amp = np.std(yy) * 2.**0.5
+            guess_offset = np.mean(yy)
+            guess = np.array([guess_amp, 2.*np.pi*guess_freq, 0., guess_offset])
+
+            def sinfunc(t, A, w, p, c):  return A * np.sin(w*t + p) + c
+            import numpy, scipy.optimize
+            popt, pcov = scipy.optimize.curve_fit(sinfunc, tt, yy, p0=guess)
+            A, w, p, c = popt
+            return lambda t: sinfunc(t, A, w, p, c)
+
+        self.P_orb_outside  = fit_sin(self.r[int(len(self.r)/2):], P_orb[int(len(self.r)/2):])
+
+        def wvfn(r):
+            # evaluates wvfn in interpolated and extrapolated regions
+            mask_out = r > np.max(self.r)   # all points outside interpolation region
+            mask_in = r <= np.max(self.r)
+            r_outside = r[mask_out]
+            r_inside = r[mask_in]
+
+            P_inside = self.P_orb_inside(r_inside)
+            P_outside = self.P_orb_outside(r_outside)
+
+            s = np.empty(len(r))
+            s[mask_in] = P_inside
+            s[mask_out] = P_outside
+
+            return s
+
+        self.__wfn = wvfn
+
     def __call__(self, r):
+        if self.pref == 'orb':
+            return self.__wfn(r)
+
         """Evaluate radial wavefunction on grid r from tabulated values."""
         is_arr = isinstance(r, np.ndarray)
 

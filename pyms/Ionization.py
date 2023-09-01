@@ -73,7 +73,7 @@ def get_q_numbers_for_transition(ell, order=1):
     return qnumbers
 
 
-def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=0.95):
+def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=0.95, pref='pfac'):
     """
     Calculate all ionization transition potentials for a particular target orbital.
 
@@ -122,7 +122,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     )
 
     # Now generate the bound_orbital object using pfac
-    bound_orbital = orbital(Z, orbital_configuration, n, ell)
+    bound_orbital = orbital(Z, orbital_configuration, n, ell, pref)
 
     qnumberset = get_q_numbers_for_transition(bound_orbital.ell, order)
 
@@ -134,7 +134,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
 
         # Generate orbital for excited state using pfac
         excited_state = orbital(
-            bound_orbital.Z, excited_configuration, 0, lprime, epsilon
+            bound_orbital.Z, excited_configuration, 0, lprime, epsilon, pref
         )
 
         # Calculate transition potential for this escited state
@@ -349,6 +349,7 @@ class orbital:
 
         angmom = ["s", "p", "d", "f"][ell]
         try:
+            print(f'{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb')
             f = open(f'orb files/{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb', 'r')
         except FileNotFoundError:
             self.from_pfac(Z, config, n, ell, epsilon)
@@ -447,6 +448,10 @@ class orbital:
 
         def wvfn(r):
             # evaluates wvfn in interpolated and extrapolated regions
+            is_arr = isinstance(r, (int, float))
+            if is_arr:
+                r = np.asarray([r])
+                
             mask_out = r > np.max(self.r)   # all points outside interpolation region
             mask_in = r <= np.max(self.r)
             r_outside = r[mask_out]
@@ -462,6 +467,8 @@ class orbital:
             return s
 
         self.__wfn = wvfn
+
+        print('from orb')
 
     def __call__(self, r):
         if self.pref == 'orb':
@@ -682,24 +689,28 @@ def transition_potential(
         jq = ht.transform(integrand, grid, ret_err=False) * np.sqrt(np.pi/2) / grid**0.5
         
         # Expression no longer valid for k = 0 so we integrate numerically
-
         zero_mask = grid == 0
 
-        jq_zero = []
-        for q_zero in grid[zero_mask]:
+        if len(zero_mask):
             overlap_kernel = (
-                    lambda x: orb1(x) * spherical_jn(lprimeprime, q_zero * x) * orb2(x)
+                    lambda x: orb1(x) * spherical_jn(lprimeprime, 0) * orb2(x)
                 )
-            jq_zero.append(
-                integrate.quad(overlap_kernel, 0, rmax)[0]
-            )
+            jq_zero = integrate.quad(overlap_kernel, 0, rmax)[0]
 
-        jq[zero_mask] = jq_zero
+            jq[zero_mask] = jq_zero
 
+        offset = 0
+        if lprimeprime == 0:
+            overlap_kernel = (
+                        lambda x: orb1(x) * orb2(x)
+                    )
+            offset = integrate.quad(overlap_kernel, 0, rmax)[0]
+
+        # plt.plot(jq - offset)
         # Bound wave function was in units of 1/sqrt(bohr-radii) and excited
         # wave function was in units of 1/sqrt(bohr-radii Rydbergs) integration
         # was performed in borh-radii units so result is 1/sqrt(Rydbergs)
-        return jq
+        return jq - offset
 
     # Mesh to calculate overlap integrals on and then interpolate
     # from

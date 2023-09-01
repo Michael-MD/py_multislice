@@ -73,7 +73,7 @@ def get_q_numbers_for_transition(ell, order=1):
     return qnumbers
 
 
-def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=0.95, pref='pfac'):
+def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=0.95, pref='orb'):
     """
     Calculate all ionization transition potentials for a particular target orbital.
 
@@ -339,17 +339,17 @@ class orbital:
                 self.from_pfac(Z, config, n, ell, epsilon)
                 return
 
-            # Check which electron is missing, assumes only one electron is missing
+            # Check which electron is missing, assumes only one electron is missing to get n and ell of ejected electron
             for nn, (full, missing) in enumerate(zip(pyms.full_orbital_filling(self.Z).split(), config.split())):
                 if full != missing:
                     nn+=1
+                    angmom = full[1]
                     break
         else:
             nn = n
+            angmom = ["s", "p", "d", "f"][ell]
 
-        angmom = ["s", "p", "d", "f"][ell]
         try:
-            print(f'{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb')
             f = open(f'orb files/{pyms.atomic_symbol[Z]}_{nn}{angmom}.orb', 'r')
         except FileNotFoundError:
             self.from_pfac(Z, config, n, ell, epsilon)

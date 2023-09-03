@@ -123,7 +123,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     )
 
     # Now generate the bound_orbital object using pfac
-    bound_orbital = orbital(Z, orbital_configuration, n, ell, pref)
+    bound_orbital = orbital(Z, orbital_configuration, n, ell, pref=pref)
 
     qnumberset = get_q_numbers_for_transition(bound_orbital.ell, order)
 
@@ -953,6 +953,7 @@ def transition_potential_multislice(
                     transmission_functions,
                     tiling=tiling,
                     qspace_out=True,
+                    device_type=device_type,
                     subslicing=True,
                     return_numpy=False,
                     output_to_bandwidth_limit=False,

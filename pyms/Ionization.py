@@ -341,9 +341,9 @@ class orbital:
                 return
 
             # Check which electron is missing, assumes only one electron is missing to get n and ell of ejected electron
-            for nn, (full, missing) in enumerate(zip(pyms.full_orbital_filling(self.Z).split(), config.split())):
+            for (full, missing) in (zip(pyms.full_orbital_filling(self.Z).split(), config.split())):
                 if full != missing:
-                    nn+=1
+                    nn=int(full[0])
                     angmom = full[1]
                     break
         else:
@@ -809,6 +809,7 @@ def transition_potential_multislice(
     qspace_in=False,
     qspace_out=True,
     posn=None,
+    isolate_layer=None,
     image_CTF=None,
     threshold=1e-4,
     showProgress=True,
@@ -910,6 +911,11 @@ def transition_potential_multislice(
     for i in tqdm(
         range(niterations), desc="Slice", disable=not showProgress, position=tqposition
     ):
+
+        # only spawn and propagate if correct layer
+        if isolate_layer is not None:
+            if i != (isolate_layer-1):
+                continue
 
         subslice = i % nsubslices
 

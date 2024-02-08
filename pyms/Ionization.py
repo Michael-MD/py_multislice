@@ -550,6 +550,7 @@ class orbital:
             plt.show(block=True)
         return fig
 
+
 def transition_potential(
     orb1,
     orb2,
@@ -688,24 +689,28 @@ def transition_potential(
         jq = ht.transform(integrand, grid, ret_err=False) * np.sqrt(np.pi/2) / grid**0.5
         
         # Expression no longer valid for k = 0 so we integrate numerically
-
         zero_mask = grid == 0
 
-        jq_zero = []
-        for q_zero in grid[zero_mask]:
+        if len(zero_mask):
             overlap_kernel = (
-                    lambda x: orb1(x) * spherical_jn(lprimeprime, q_zero * x) * orb2(x)
+                    lambda x: orb1(x) * spherical_jn(lprimeprime, 0) * orb2(x)
                 )
-            jq_zero.append(
-                integrate.quad(overlap_kernel, 0, rmax)[0]
-            )
+            jq_zero = integrate.quad(overlap_kernel, 0, rmax)[0]
 
-        jq[zero_mask] = jq_zero
+            jq[zero_mask] = jq_zero
 
+        offset = 0
+        if lprimeprime == 0:
+            overlap_kernel = (
+                        lambda x: orb1(x) * orb2(x)
+                    )
+            offset = integrate.quad(overlap_kernel, 0, rmax)[0]
+
+        # plt.plot(jq - offset)
         # Bound wave function was in units of 1/sqrt(bohr-radii) and excited
         # wave function was in units of 1/sqrt(bohr-radii Rydbergs) integration
         # was performed in borh-radii units so result is 1/sqrt(Rydbergs)
-        return jq
+        return jq - offset
 
     # Mesh to calculate overlap integrals on and then interpolate
     # from
@@ -786,7 +791,6 @@ def transition_potential(
     if qspace:
         return Hn0
     return np.fft.ifft2(Hn0)
-
 
 def transition_potential_multislice(
     probes,

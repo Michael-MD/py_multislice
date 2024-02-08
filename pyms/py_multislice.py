@@ -152,7 +152,6 @@ def generate_slice_indices(nslices, nsubslices, subslicing=False):
         niterations = nslices if subslicing else nslices * nsubslices
         return np.arange(niterations)
 
-
 def multislice(
     probes,
     nslices,
@@ -276,6 +275,12 @@ def multislice(
         else:
             return array
 
+    def flipornot(array, conjugate):
+        if conjugate:
+            return 1/array
+        else:
+            return array
+
     for i, islice in enumerate(slices):
 
         # If an array-like object is passed then this will be used to uniquely
@@ -331,8 +336,9 @@ def multislice(
                 )
 
         T_ = shift(shift(T[it, subslice], tiling[0], 0), tiling[1], 1)
+
         # Perform multislice iteration
-        if transpose or reverse:
+        if transpose ^ reverse:
             # Reverse multislice complex conjugates the transmission and
             # propagation. Both reverse and transpose multislice reverse
             # the order of the transmission and conjugation operations
@@ -343,13 +349,13 @@ def multislice(
                     torch.fft.fftn(psi, dim=d_) * conjugateornot(P_, reverse),
                     dim=d_,
                 )
-                * conjugateornot(T_, reverse)
+                * flipornot(T_, reverse)
             )
 
         else:
             # Standard multislice iteration - probe should start in real space
             # and finish this iteration in reciprocal space
-            psi = torch.fft.fftn(psi * T_, dim=d_) * P_
+            psi = torch.fft.fftn(psi * flipornot(T_, reverse), dim=d_) * conjugateornot(P_, reverse)
 
         # The probe can be cropped to the bandwidth limit, this removes
         # superfluous array entries in reciprocal space that are zero

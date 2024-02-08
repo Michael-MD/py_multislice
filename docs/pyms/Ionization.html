@@ -121,7 +121,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
     ell : int
         Target orbital angular momentum quantum number
     epsilon : Optional
-        Energy of continuum wavefunction, ie energy above ionization threshhold
+        Energy of continuum wavefunction, ie energy above ionization threshold
     eV : float
         Probe energy in electron volts
     gridshape : (2,) array_like
@@ -132,7 +132,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
         Largest change in orbital angular momentum quantum number, order = 1
         gives all dipole terms, order = 2 gives all quadropole terms etc.
     contr : float,optional
-        Threshhold for rejection of ionization transition potential, eg. if
+        threshold for rejection of ionization transition potential, eg. if
         contr == 0.95 an individual transition is rejected if it would
         contribute less than 5 % to the total signal
     &#34;&#34;&#34;
@@ -181,7 +181,7 @@ def get_transitions(Z, n, ell, epsilon, eV, gridshape, gridsize, order=1, contr=
 
     tot = np.sum(np.square(np.abs(transition_potentials)))
 
-    # Reject orbitals which fall below the user-supplied threshhold
+    # Reject orbitals which fall below the user-supplied threshold
     return np.stack(
         [
             Hn0
@@ -635,7 +635,7 @@ def transition_potential_multislice(
     qspace_out=True,
     posn=None,
     image_CTF=None,
-    threshhold=1e-4,
+    threshold=1e-4,
     showProgress=True,
     tqposition=0,
 ):
@@ -712,12 +712,12 @@ def transition_potential_multislice(
     if qspace_in:
         probes = torch.ifft(probes, signal_ndim=2)
 
-    # Calculate threshholds below which an ionization will not be included in
+    # Calculate thresholds below which an ionization will not be included in
     # the simulation.
-    if threshhold is not None:
+    if threshold is not None:
         trigger = np.zeros(ionization_potentials.shape[0])
         for i, ionization_potential in enumerate(ionization_potentials):
-            trigger[i] = threshhold * torch.sum(amplitude(ionization_potential))
+            trigger[i] = threshold * torch.sum(amplitude(ionization_potential))
 
     # Ionization potentials must be in reciprocal space
     ionization_potentials = torch.fft(ionization_potentials, signal_ndim=2)
@@ -765,9 +765,9 @@ def transition_potential_multislice(
                 psi_n = complex_mul(Hn0, probes)
 
                 # Only propagate this wave to the exit surface if it is deemed
-                # to contribute significantly (above a user-determined threshhold)
-                # to the image. Pass threshhold = None to disable this feature
-                if threshhold is not None:
+                # to contribute significantly (above a user-determined threshold)
+                # to the image. Pass threshold = None to disable this feature
+                if threshold is not None:
                     if torch.sum(amplitude(psi_n)) &lt; trigger[j]:
                         continue
 
@@ -1079,7 +1079,7 @@ excited state the list contains quantum numbers [lprime,mlprime,ml]</dd>
 <dt><strong><code>ell</code></strong> :&ensp;<code>int</code></dt>
 <dd>Target orbital angular momentum quantum number</dd>
 <dt><strong><code>epsilon</code></strong> :&ensp;<code>Optional</code></dt>
-<dd>Energy of continuum wavefunction, ie energy above ionization threshhold</dd>
+<dd>Energy of continuum wavefunction, ie energy above ionization threshold</dd>
 <dt><strong><code>eV</code></strong> :&ensp;<code>float</code></dt>
 <dd>Probe energy in electron volts</dd>
 <dt><strong><code>gridshape</code></strong> :&ensp;<code>(2,) array_like</code></dt>
@@ -1090,7 +1090,7 @@ excited state the list contains quantum numbers [lprime,mlprime,ml]</dd>
 <dd>Largest change in orbital angular momentum quantum number, order = 1
 gives all dipole terms, order = 2 gives all quadropole terms etc.</dd>
 <dt><strong><code>contr</code></strong> :&ensp;<code>float</code>,optional</dt>
-<dd>Threshhold for rejection of ionization transition potential, eg. if
+<dd>threshold for rejection of ionization transition potential, eg. if
 contr == 0.95 an individual transition is rejected if it would
 contribute less than 5 % to the total signal</dd>
 </dl></div>
@@ -1111,7 +1111,7 @@ contribute less than 5 % to the total signal</dd>
     ell : int
         Target orbital angular momentum quantum number
     epsilon : Optional
-        Energy of continuum wavefunction, ie energy above ionization threshhold
+        Energy of continuum wavefunction, ie energy above ionization threshold
     eV : float
         Probe energy in electron volts
     gridshape : (2,) array_like
@@ -1122,7 +1122,7 @@ contribute less than 5 % to the total signal</dd>
         Largest change in orbital angular momentum quantum number, order = 1
         gives all dipole terms, order = 2 gives all quadropole terms etc.
     contr : float,optional
-        Threshhold for rejection of ionization transition potential, eg. if
+        threshold for rejection of ionization transition potential, eg. if
         contr == 0.95 an individual transition is rejected if it would
         contribute less than 5 % to the total signal
     &#34;&#34;&#34;
@@ -1171,7 +1171,7 @@ contribute less than 5 % to the total signal</dd>
 
     tot = np.sum(np.square(np.abs(transition_potentials)))
 
-    # Reject orbitals which fall below the user-supplied threshhold
+    # Reject orbitals which fall below the user-supplied threshold
     return np.stack(
         [
             Hn0
@@ -1503,7 +1503,7 @@ number of electrons that sit in the ground state before ionization.</dd>
 </details>
 </dd>
 <dt id="pyms.Ionization.transition_potential_multislice"><code class="name flex">
-<span>def <span class="ident">transition_potential_multislice</span></span>(<span>probes, nslices, subslices, propagators, transmission_functions, ionization_potentials, ionization_sites, tiling=[1, 1], device_type=None, seed=None, return_numpy=True, qspace_in=False, qspace_out=True, posn=None, image_CTF=None, threshhold=0.0001, showProgress=True, tqposition=0)</span>
+<span>def <span class="ident">transition_potential_multislice</span></span>(<span>probes, nslices, subslices, propagators, transmission_functions, ionization_potentials, ionization_sites, tiling=[1, 1], device_type=None, seed=None, return_numpy=True, qspace_in=False, qspace_out=True, posn=None, image_CTF=None, threshold=0.0001, showProgress=True, tqposition=0)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Perform a multislice calculation with a transition potential for ionization.</p>
@@ -1565,7 +1565,7 @@ function.</dd>
     qspace_out=True,
     posn=None,
     image_CTF=None,
-    threshhold=1e-4,
+    threshold=1e-4,
     showProgress=True,
     tqposition=0,
 ):
@@ -1642,12 +1642,12 @@ function.</dd>
     if qspace_in:
         probes = torch.ifft(probes, signal_ndim=2)
 
-    # Calculate threshholds below which an ionization will not be included in
+    # Calculate thresholds below which an ionization will not be included in
     # the simulation.
-    if threshhold is not None:
+    if threshold is not None:
         trigger = np.zeros(ionization_potentials.shape[0])
         for i, ionization_potential in enumerate(ionization_potentials):
-            trigger[i] = threshhold * torch.sum(amplitude(ionization_potential))
+            trigger[i] = threshold * torch.sum(amplitude(ionization_potential))
 
     # Ionization potentials must be in reciprocal space
     ionization_potentials = torch.fft(ionization_potentials, signal_ndim=2)
@@ -1695,9 +1695,9 @@ function.</dd>
                 psi_n = complex_mul(Hn0, probes)
 
                 # Only propagate this wave to the exit surface if it is deemed
-                # to contribute significantly (above a user-determined threshhold)
-                # to the image. Pass threshhold = None to disable this feature
-                if threshhold is not None:
+                # to contribute significantly (above a user-determined threshold)
+                # to the image. Pass threshold = None to disable this feature
+                if threshold is not None:
                     if torch.sum(amplitude(psi_n)) &lt; trigger[j]:
                         continue
 

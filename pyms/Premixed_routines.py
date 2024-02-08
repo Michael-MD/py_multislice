@@ -32,6 +32,7 @@ from .utils.torch_utils import (
     complex_to_real_dtype_torch,
     ensure_torch_array,
     fourier_shift_array,
+    fourier_shift_torch,
 )
 from .utils.numpy_utils import (
     fourier_shift,
@@ -647,7 +648,7 @@ def STEM_multislice(
         then selected from in the frozen phonon algorithm. Set to 0 or -1 for
         absorptive calculation.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -1162,7 +1163,7 @@ def STEM_EELS_multislice(
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     df : float, optional
         Probe defocus
     subslices : array_like, optional
@@ -1181,7 +1182,7 @@ def STEM_EELS_multislice(
     nfph : int, optional
         Number of frozen phonon iterations.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -1189,7 +1190,7 @@ def STEM_EELS_multislice(
     dtype : torch.dtype, optional
         Datatype of the simulation arrays, by default 32-bit floating point
     ionization_cutoff : float
-        Threshhold below which the contribution of certain ionizations will be
+        threshold below which the contribution of certain ionizations will be
         ignored.
     beam_tilt : array_like, optional
         Allows the user to simulate a (small < 50 mrad) beam tilt, To maintain
@@ -1270,7 +1271,7 @@ def STEM_EELS_multislice(
         "device_type": device,
         "return_numpy": False,
         "qspace_in": True,
-        "threshhold": ionization_cutoff,
+        "threshold": ionization_cutoff,
         "showProgress": False,
         "tqposition": 1,
     }
@@ -1714,7 +1715,7 @@ def EFTEM(
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     df : float or array_like, optional
         Probe defocus, 0 by default.
     subslices : array_like, optional
@@ -1731,7 +1732,7 @@ def EFTEM(
         Number of independent multislice transmission functions generated and
         then selected from in the frozen phonon algorithm
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be
@@ -1754,7 +1755,7 @@ def EFTEM(
         Pass False to disable progress readout, pass 'notebook' to get correct
         progress bar behaviour inside a jupyter notebook
     ionization_cutoff : float
-        Threshhold below which the contribution of certain ionizations will be
+        threshold below which the contribution of certain ionizations will be
         ignored.
     Hn0 : (n,y,x) np.complex, optional
         Precalculated Hn0s ionization transition potentials, if not provided
@@ -1857,13 +1858,640 @@ def EFTEM(
                 seed=None,
                 return_numpy=True,
                 qspace_in=False,
-                threshhold=ionization_cutoff,
+                threshold=ionization_cutoff,
                 showProgress=showProgress,
                 tqposition=1,
             ),
             tiling,
         )
     return result
+
+def EFSTEM_MS(
+    structure,
+    gridshape,
+    eV,
+    app,
+    thicknesses,
+    Ztarget,
+    n,
+    ell,
+    epsilon,
+    scan_posns=None,
+    subslices=[1.0],
+    device_type=None,
+    tiling=[1, 1],
+    df=0,
+    nT=1,
+    contr=0.95,
+    dtype=float,
+    order=1,
+    beam_tilt=[0, 0],
+    specimen_tilt=[0, 0],
+    tilt_units="mrad",
+    aberrations=[],
+    showProgress=True,
+    ionization_cutoff=None,
+    Hn0=None,
+    P=None,
+    T=None,
+):
+    """
+    Perform an elemental mapping energy-filtered STEM (EFSTEM) simulation
+    using multislice.
+
+    Parameters
+    ----------
+    structure : pyms.structure_routines.structure
+        The structure of interest
+    scan_posn:
+        Probe position
+    gridshape : (2,) array_like
+        Pixel size of the simulation grid
+    eV : float
+        Probe energy in electron volts
+    app : float
+        Objective aperture in mrad
+    thicknesses : float or array_like
+        Thickness of the calculation
+    Ztarget : int
+        Atomic number of the ionization targets
+    n : int
+        Principal atomic number of the bound transition of interest (1 for K
+        shell, 2 for L shell etc.)
+    ell : int
+        orbital angular momentum quantum number of hte bound transition of
+        interest
+    epsilon : float
+        Energy above ionization threshold energy
+    df : float or array_like, optional
+        Probe defocus, 0 by default.
+    subslices : array_like, optional
+        A one dimensional array-like object containing the depths (in fractional
+        coordinates) at which the object will be subsliced. The last entry
+        should always be 1.0. For example, to slice the object into four equal
+        sized slices pass [0.25,0.5,0.75,1.0]
+    device_type : torch.device, optional
+        torch.device object which will determine which device (CPU or GPU) the
+        calculations will run on
+    tiling : (2,) array_like, optional
+        Tiling of a repeat unit cell on simulation grid
+    contr : float, optional
+        A threshold for inclusion of ionization transitions within the
+        calculation, if contr = 1.0 all ionization transitions will be inlcuded
+        in the simulation otherwise only the transitions that make up a
+        fraction equal to contr of the total ionization transitions will be
+        included
+    dtype : torch.dtype, optional
+        Datatype of the simulation arrays, by default 32-bit floating point
+    beam_tilt : array_like, optional
+        Allows the user to simulate a (small < 50 mrad) beam tilt, To maintain
+        periodicity of the wave function at the boundaries this tilt is rounded
+        to the nearest pixel value.
+    specimen_tilt : array_like, optional
+        Allows the user to simulate a (small < 50 mrad) tilt of the specimen,
+        by shearing the propagator. Units given by input variable tilt_units.
+    tilt_units : string, optional
+        Units of specimen and beam tilt, can be 'mrad','pixels' or 'invA'
+    aberrations : list, optional
+        A list containing a set of the class aberration, pass an empty list for
+        an unaberrated probe.
+    showProgress : str or bool, optional
+        Pass False to disable progress readout, pass 'notebook' to get correct
+        progress bar behaviour inside a jupyter notebook
+    ionization_cutoff : float
+        threshold below which the contribution of certain ionizations will be
+        ignored.
+    Hn0 : (n,y,x) np.complex, optional
+        Precalculated Hn0s ionization transition potentials, if not provided
+        these will be calculated.
+    P : (nslices,y,x) array_like, optional
+        Precalculated multislice propagators, default is None which will mean
+        that these are calculated within the routine.
+    T : (nT,nslices,y,x) array_like, optional
+        Precalculated multislice transmission functions, default is None which
+        will mean that these are calculated within the routine.
+    Returns
+    -------
+    result : (scan_posns, Y,X) array_like
+        The EFTEM images at each scan position specified.
+    """
+    tdisable, tqdm = tqdm_handler(showProgress)
+
+    # Calculate grid size in Angstrom
+    rsize = np.zeros(3)
+    rsize[:3] = structure.unitcell[:3]
+    rsize[:2] *= np.asarray(tiling)
+
+    # Choose GPU if available and CPU if not
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+
+    # ********************************************************
+
+    # Calculate the size of the grid after band-width limiting
+    bw_limit_size = size_of_bandwidth_limited_array(gridshape)
+
+    # Assume real space probe is passed in so perform Fourier transform in
+    # anticipation of application of Fourier shift theorem
+    probe = focused_probe(
+            gridshape,
+            rsize[:2],
+            eV,
+            app,
+            df=df,
+            aberrations=aberrations,
+            beam_tilt=beam_tilt,
+            tilt_units=tilt_units,
+            qspace=True,
+        )
+    probe_ = ensure_torch_array(probe, device=device)
+    # probe_ = torch.fft.fftn(probe_, dim=[-2, -1])
+
+
+    # Convert thicknesses to number of unit cells
+    nslices = np.ceil(thicknesses / structure.unitcell[2]).astype(int)
+
+    # Get the coordinates of the target atoms in a unit cell
+    mask = structure.atoms[:, 3] == Ztarget
+
+    # Adjust fractional coordinates for tiling of unit cell
+    # coords = structure.atoms[mask][:, :3] / np.asarray(tiling + [1])
+    # build up all ionization sites based on tiling
+    coords_single_cell = structure.atoms[mask][:, :3]
+    coords = []
+    for i in range(0,tiling[0]):
+        for j in range(0,tiling[1]):
+            for coord in coords_single_cell:
+                coords.append([coord[0] + i, coord[1]+j, coord[2]])
+        
+    coords = np.array(coords)
+    coords[:,0] /= tiling[0]
+    coords[:,1] /= tiling[1]
+
+
+    if Hn0 is None:
+        Hn0 = get_transitions(
+            Ztarget, n, ell, epsilon, eV, gridshape, rsize, order=order, contr=contr
+        )
+
+
+    if scan_posns is None:
+        scan_posns = generate_STEM_raster(rsize[0:2], eV, app)
+    result = np.zeros([*scan_posns.shape[0:2],*gridshape], dtype=torch_dtype_to_numpy(dtype))
+
+    scan_max_x, scan_max_y, _ = scan_posns.shape
+
+    # Perform multislice simulation and return the tiled out result
+    for i in tqdm(range(scan_max_x), desc="Row"):
+        for j in tqdm(range(scan_max_y), desc='Col'):
+        # Calculate propagator and transmission functions for multislice
+            if P is None or T is None:
+                P, T = multislice_precursor(
+                    structure,
+                    gridshape,
+                    eV,
+                    subslices,
+                    tiling,
+                    specimen_tilt,
+                    tilt_units,
+                    nT,
+                    device,
+                    dtype,
+                    showProgress,
+                    displacements=False,
+                )
+
+            # _______________ shift illuminating probe _______________
+            # The shift operator array will be of size batch_size x Y x X
+            probes = fourier_shift_array(
+                gridshape,
+                scan_posns[i,j],
+                dtype=dtype,
+                device=device,
+                units="fractional",
+            )
+
+            # Apply shift to original probe
+            probe_shifted = probe_.view(*probe_.size()) * probes
+            # ____________________________________________________________
+            result[i,j] = tile_out_ionization_image(
+                transition_potential_multislice(
+                    probe_shifted,
+                    nslices,
+                    subslices,
+                    P,
+                    T,
+                    Hn0,
+                    coords,
+                    tiling=[1,1],
+                    device_type=device,
+                    seed=None,
+                    return_numpy=True,
+                    qspace_in=True,
+                    showProgress=False,
+                    threshold=ionization_cutoff,
+                    tqposition=1,
+                ),
+                np.array([1,1]),
+            )[0].astype(float)
+
+    return result
+
+def EFSTEM_S(
+    structure,
+    gridshape,
+    eV,
+    app,
+    thicknesses,
+    Ztarget,
+    n,
+    ell,
+    epsilon,
+    scan_posns=None,
+    df=0,
+    subslices=[1.0],
+    tiling=[1, 1],
+    contr=0.95,
+    dtype=float,
+    order=1,
+    beam_tilt=[0, 0],
+    specimen_tilt=[0, 0],
+    tilt_units="mrad",
+    aberrations=[],
+    showProgress=True,
+    ionization_cutoff=None,
+    Hn0=None,
+    P=None,
+    T=None,
+    PRISM_factor=[1,1],
+    save_s_mat=False,
+    s_mat_filename=None,
+    nT=1,
+    S1=None,
+    S2=None,
+    extended_app=40,
+    GPU_streaming=False,
+    batch_size=3,
+):
+    """
+    Perform an elemental mapping energy-filtered STEM (EFSTEM) simulation using
+    S matrix.
+
+    Parameters
+    ----------
+    structure : pyms.structure_routines.structure
+        The structure of interest
+    gridshape : (2,) array_like
+        Pixel size of the simulation grid
+    eV : float
+        Probe energy in electron volts
+    app : float
+        Objective aperture in mrad
+    thicknesses : float or array_like
+        Thickness of the calculation
+    Ztarget : int
+        Atomic number of the ionization targets
+    n : int
+        Principal atomic number of the bound transition of interest (1 for K
+        shell, 2 for L shell etc.)
+    ell : int
+        orbital angular momentum quantum number of hte bound transition of
+        interest
+    epsilon : float
+        Energy above ionization threshold energy
+    scan_posn:
+        Probe position
+    df : float or array_like, optional
+        Probe defocus, 0 by default.
+    subslices : array_like, optional
+        A one dimensional array-like object containing the depths (in fractional
+        coordinates) at which the object will be subsliced. The last entry
+        should always be 1.0. For example, to slice the object into four equal
+        sized slices pass [0.25,0.5,0.75,1.0]
+    tiling : (2,) array_like, optional
+        Tiling of a repeat unit cell on simulation grid
+    contr : float, optional
+        A threshold for inclusion of ionization transitions within the
+        calculation, if contr = 1.0 all ionization transitions will be inlcuded
+        in the simulation otherwise only the transitions that make up a
+        fraction equal to contr of the total ionization transitions will be
+        included
+    dtype : torch.dtype, optional
+        Datatype of the simulation arrays, by default 32-bit floating point
+    order : int,optional
+        Largest change in orbital angular momentum quantum number, order = 1
+        gives all dipole terms, order = 2 gives all quadropole terms etc.
+    beam_tilt : array_like, optional
+        Allows the user to simulate a (small < 50 mrad) beam tilt, To maintain
+        periodicity of the wave function at the boundaries this tilt is rounded
+        to the nearest pixel value.
+    specimen_tilt : array_like, optional
+        Allows the user to simulate a (small < 50 mrad) tilt of the specimen,
+        by shearing the propagator. Units given by input variable tilt_units.
+    tilt_units : string, optional
+        Units of specimen and beam tilt, can be 'mrad','pixels' or 'invA'
+    aberrations : list, optional
+        A list containing a set of the class aberration, pass an empty list for
+        an unaberrated probe.
+    showProgress : str or bool, optional
+        Pass False to disable progress readout, pass 'notebook' to get correct
+        progress bar behaviour inside a jupyter notebook
+    ionization_cutoff : float
+        threshold below which the contribution of certain ionizations will be
+        ignored.
+    Hn0 : (n,y,x) np.complex, optional
+        Precalculated Hn0s ionization transition potentials, if not provided
+        these will be calculated.
+    P : (nslices,y,x) array_like, optional
+        Precalculated multislice propagators, default is None which will mean
+        that these are calculated within the routine.
+    T : (nT,nslices,y,x) array_like, optional
+        Precalculated multislice transmission functions, default is None which
+        will mean that these are calculated within the routine.
+    PRISM_factor : int (2,) array_like, optional
+        The PRISM "interpolation factor" this is the amount by which the
+        scattering matrices are cropped in real space to speed up
+        calculations see Ophus, Colin. "A fast image simulation algorithm
+        for scanning transmission electron microscopy." Advanced structural
+        and chemical imaging 3.1 (2017): 13 for details on this.
+    save_s_mat: bool, optional
+        Saves S1 to be reused in subsequent calls.
+    s_mat_filename: str, optional
+        If specified then S1 is loaded or save depending on the save_s_mat arguement
+    nT : int, optional
+        Number of independent multislice transmission functions generated and
+        then selected from in the frozen phonon algorithm. If nT < 1 an absorptive 
+        calculation is performed.
+    S1: class scattering_matrix, optional
+        Scattering matrix for propagating 0 slices i.e. identity. If none specified 
+        then these are calculated internally.
+    S2: class scattering_matrix, optional
+        Scattering matrix used to propagate wave field from entrace to exit surface.
+        If none specified then these are calculated internally.
+    extended_app : float, optional
+        Maximum input angle for the scattering matrix, should match the
+        probe forming aperture used in experiment
+    batch_size : int, optional
+        The multislice algorithm can be performed on multiple scattering
+        matrix columns at once to parrallelize computation, this number is
+        set by batch_size.
+    GPU_streaming : bool, optional
+        If True, the scattering matrix will be stored off GPU RAM and
+        streamed to GPU RAM as necessary, does nothing if the calculation
+        is CPU only.
+    batch_size : int, optional
+            The multislice algorithm can be performed on multiple scattering
+            matrix columns at once to parrallelize computation, this number is
+            set by batch_size.
+    Returns
+    -------
+    result : (scan_posns, Y,X) array_like
+        The EFTEM images at each scan position specified.
+    """
+
+    tdisable, tqdm = tqdm_handler(showProgress)
+
+    # Calculate grid size in Angstrom
+    rsize = np.zeros(3)
+    rsize[:3] = structure.unitcell[:3]
+    rsize[:2] *= np.asarray(tiling)
+
+    # Choose GPU if available and CPU if not
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    # ********************************************************
+
+    # Calculate the size of the grid after band-width limiting
+    bw_limit_size = size_of_bandwidth_limited_array(gridshape)
+
+    # Assume real space probe is passed in so perform Fourier transform in
+    # anticipation of application of Fourier shift theorem
+    probe = focused_probe(
+            gridshape,
+            rsize[:2],
+            eV,
+            app,
+            df=df,
+            aberrations=aberrations,
+            beam_tilt=beam_tilt,
+            tilt_units=tilt_units,
+            qspace=True,
+        )
+    probe_ = ensure_torch_array(probe, device='cpu').type(torch.complex128)
+    # probe_ = torch.fft.fftn(probe_, dim=[-2, -1])
+
+    # Convert thicknesses to number of unit cells
+    nslices = np.ceil(thicknesses / structure.unitcell[2]).astype(int)
+
+    # Get the coordinates of the target atoms in a unit cell
+    mask = structure.atoms[:, 3] == Ztarget
+    # if structure.ionization_flags is not None:
+    #     mask = np.logical_and(structure.ionization_flags, mask)
+
+    # Adjust fractional coordinates for tiling of unit cell
+    # coords = structure.atoms[mask][:, :3] / np.asarray(tiling + [1])
+    # build up all ionization sites based on tiling
+    coords_single_cell = structure.atoms[mask][:, :3]
+    ionization_sites = []
+    for i in range(0,tiling[0]):
+        for j in range(0,tiling[1]):
+            for coord in coords_single_cell:
+                ionization_sites.append([coord[0] + i, coord[1]+j, coord[2]])
+    
+    ionization_sites = np.array(ionization_sites)
+    ionization_sites[:,0] /= tiling[0]
+    ionization_sites[:,1] /= tiling[1]
+
+
+    if Hn0 is None:
+        Hn0 = get_transitions(
+            Ztarget, n, ell, epsilon, eV, gridshape, rsize, order=order, contr=contr
+        )
+
+    ionization_potentials = ensure_torch_array(Hn0, device='cpu').type(torch.cfloat)
+    niterations = nslices * (nsubslices:=len(subslices))
+
+    if scan_posns is None:
+        scan_posns = generate_STEM_raster(rsize[0:2], eV, app)
+    output = torch.zeros([*scan_posns.shape[0:2],*gridshape], dtype=float)
+
+    scan_max_x, scan_max_y, _ = scan_posns.shape
+
+
+    P, T = multislice_precursor(
+        structure=structure,
+        gridshape=gridshape,
+        eV=eV,
+        subslices=subslices,
+        tiling=tiling,
+        nT=nT,
+        showProgress=False,
+    )
+    
+    from time import time
+    start_time = time()
+
+    if s_mat_filename is not None:
+        import pickle
+        with open(s_mat_filename, 'rb') as file:
+            S1 = pickle.load(file)
+
+    if S1 is None:
+        S1 = scattering_matrix(
+                rsize=rsize[0:2],
+                propagators=P,
+                transmission_functions=T,
+                nslice=0,
+                eV=eV,
+                alpha=app,
+                batch_size=batch_size,
+                subslicing=True,
+                device=device,
+                showProgress=True,
+                stored_gridshape=gridshape,
+                GPU_streaming=GPU_streaming,
+            )
+
+    if save_s_mat:
+        import pickle
+        if s_mat_filename is None:
+            s_mat_filename = 's_mat.pkl'
+        with open(s_mat_filename, 'wb') as file:
+            pickle.dump(S1, file)
+
+    if S2 is None:
+        S2 = scattering_matrix(
+                rsize=rsize[0:2],
+                propagators=P,
+                transmission_functions=T,
+                nslice=niterations,
+                eV=eV,
+                alpha=extended_app,
+                batch_size=batch_size,
+                subslicing=True,
+                transposed=True,
+                PRISM_factor=PRISM_factor,
+                device=device,
+                showProgress=True,
+                stored_gridshape=gridshape,
+                GPU_streaming=GPU_streaming,
+            )
+
+
+    # Make array of shifted probes
+    probes_shifted = torch.empty([*scan_posns.shape[0:2], *gridshape], dtype=torch.cfloat)
+    for i in tqdm(range(scan_max_x), desc="Making shifted probes: "):
+        for j in range(scan_max_y):
+            probes_shifted[i,j] = fourier_shift_torch(
+                                                probe_, 
+                                                scan_posns[i,j] * gridshape, 
+                                                qspace_in=True, 
+                                                qspace_out=True,
+                                                dtype=float,
+                                            )
+
+    
+    probes_shifted_expanded = probes_shifted.unsqueeze(0).type(torch.cfloat)
+
+    # probes_shifted_expanded_propagated = torch.fft.ifft2(probes_shifted_expanded.detach().clone()).to(device)
+    S2.S = S2.S.to(device)
+    Smatshape = S2.S.shape
+    flattened_shape = [Smatshape[0], Smatshape[-2] * Smatshape[-1]]
+
+    Smatshape_S1 = S1.S.shape
+    flattened_shape_S1 = [Smatshape_S1[0], Smatshape_S1[-2] * Smatshape_S1[-1]]
+
+    for islice in tqdm(
+        range(niterations), desc="Slice: "
+    ):
+
+        # Update S1
+        S1.S = S1.S.to(device)
+        S1.Propagate(
+            islice, P, T, subslicing=True, batch_size=batch_size, showProgress=False
+        )
+
+        probes_shifted_expanded_propagated = torch.matmul(
+                                               probes_shifted_expanded.to(device)[..., S1.beams[0], S1.beams[1]], S1.S.view(flattened_shape_S1)
+                                            ).view(probes_shifted_expanded.shape) / np.sqrt(np.prod(Smatshape_S1[-2:]))
+
+        # probes_shifted_expanded_propagated = S1(probes_shifted_expanded)
+        S1.S = S1.S.to('cpu')
+
+
+        probes_shifted_expanded_propagated = probes_shifted_expanded_propagated.to('cpu')
+
+        
+        # Update S2
+        S2.Propagate(
+            niterations - islice, P, T, subslicing=True, batch_size=batch_size, showProgress=False, transpose=True,
+        )
+        
+        S2.S = S2.S.to(device)
+
+        if islice != 0:
+            S2.S = torch.fft.ifft2(S2.S)
+
+        probes_shifted_expanded_propagated = probes_shifted_expanded_propagated.to(device)
+
+
+        subslice = islice % nsubslices
+
+        # Find inelastic transitions within this subslice
+        zmin = 0 if subslice == 0 else subslices[subslice - 1]
+        zmax = subslices[subslice]
+
+        atoms_in_slice = np.nonzero(
+            (ionization_sites[:, 2]% 1.0 >= zmin)
+            & (ionization_sites[:, 2]% 1.0 < zmax)
+        )
+
+        for atom in atoms_in_slice[0]:
+
+
+            # Shift Hn0s to ionization site
+            p_ = (
+                    torch.from_numpy(ionization_sites[atom, :2] * gridshape)
+                )
+
+            ionization_potentials_shifted_expanded = fourier_shift_torch(
+                                                ionization_potentials, 
+                                                p_, 
+                                                qspace_in=False, 
+                                                qspace_out=False,
+                                            ).unsqueeze(1).unsqueeze(1).to(device)
+
+
+            # Perform elementwise multiplication, psi_n is now order x scan_pos_x x scan_pos_y x gridshape
+            psi_n = probes_shifted_expanded_propagated * ionization_potentials_shifted_expanded
+
+            output[..., -S2.beams[0], -S2.beams[1]] += torch.sum(
+                                 torch.abs(
+                                        # torch.fft.fft2(
+                                            torch.matmul(
+                                               psi_n.view([*psi_n.shape[:-2], np.prod(gridshape)]), torch.transpose(S2.S.view(flattened_shape), 0, 1)
+                                            )
+                                        # )
+                                    )**2
+                            ,dim=0).cpu()
+
+
+        ionization_potentials_shifted_expanded = ionization_potentials_shifted_expanded.to('cpu')
+        psi_n = psi_n.to('cpu')
+        torch.cuda.empty_cache()
+
+
+    end_time = time()
+    # print(end_time - start_time)
+
+    return (output*np.prod(gridshape)).to('cpu').type(torch.float32).numpy()
+
 
 
 def STEM_EELS_PRISM(
@@ -1925,7 +2553,7 @@ def STEM_EELS_PRISM(
         orbital angular momentum quantum number of hte bound transition of
         interest
     epsilon : float
-        Energy above ionization threshhold energy
+        Energy above ionization threshold energy
     nfph : int,optional
         Number of frozen phonon iterations default is 5
     df : float,optional
@@ -1952,7 +2580,7 @@ def STEM_EELS_PRISM(
         for scanning transmission electron microscopy." Advanced structural
         and chemical imaging 3.1 (2017): 13 for details on this.
     contr : float, optional
-        A threshhold for inclusion of ionization transitions within the
+        A threshold for inclusion of ionization transitions within the
         calculation, if contr = 1.0 all ionization transitions will be inlcuded
         in the simulation otherwise only the transitions that make up a
         fraction equal to contr of the total ionization transitions will be

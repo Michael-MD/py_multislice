@@ -807,10 +807,12 @@ def transition_potential_multislice(
     qspace_in=False,
     qspace_out=True,
     posn=None,
+    isolate_layer=None,
     image_CTF=None,
-    threshhold=1e-4,
+    threshold=1e-4,
     showProgress=True,
     tqposition=0,
+    Veff=None,
 ):
     """
     Perform a multislice calculation with a transition potential for ionization.
@@ -860,7 +862,7 @@ def transition_potential_multislice(
     nsubslices = len(subslices)
 
     # Get grid shape
-    gridshape = np.asarray(transmission_functions.size()[-3:-1])
+    gridshape = np.asarray(transmission_functions.size())[[-2,-1]]
 
     # Total number of slices in multislice
     niterations = nslices * nsubslices
@@ -883,27 +885,26 @@ def transition_potential_multislice(
 
     # If Fourier space probes are passed, inverse Fourier transform them
     if qspace_in:
-        probes = torch.ifft(probes, signal_ndim=2)
+        probes = torch.fft.ifft2(probes)
 
-    # Calculate threshholds below which an ionization will not be included in
+    # Calculate thresholds below which an ionization will not be included in
     # the simulation.
-    if threshhold is not None:
+    if threshold is not None:
         trigger = np.zeros(ionization_potentials.shape[0])
         for i, ionization_potential in enumerate(ionization_potentials):
-            trigger[i] = threshhold * torch.sum(amplitude(ionization_potential))
+            trigger[i] = threshold * torch.sum(amplitude(ionization_potential))
 
     # Ionization potentials must be in reciprocal space
-    ionization_potentials = fft(ionization_potentials, signal_ndim=2)
+    ionization_potentials = torch.fft.fft2(ionization_potentials)
 
     # Output array
     from .utils.torch_utils import size_of_bandwidth_limited_array
 
     nprobes = probes.size(0)
-    gridout = size_of_bandwidth_limited_array(probes.shape[-3:-1])
     if image_CTF is None:
-        output = torch.zeros(nprobes, *gridout, device=device, dtype=dtype)
+        output = torch.zeros(nprobes, *gridshape, device=device, dtype=dtype)
     else:
-        output = torch.zeros(image_CTF.shape[0], *gridout, device=device, dtype=dtype)
+        output = torch.zeros(image_CTF.shape[0], *gridshape, device=device, dtype=dtype)
 
     # Loop over slices of specimens
     for i in tqdm(
@@ -918,6 +919,7 @@ def transition_potential_multislice(
             (ionization_sites[:, 2] % 1.0 >= zmin)
             & (ionization_sites[:, 2] % 1.0 < subslices[subslice])
         )
+
 
         # Loop over inelastic transitions within the slice
         for atom in atoms_in_slice[
@@ -937,31 +939,33 @@ def transition_potential_multislice(
                 Hn0 = fourier_shift_torch(ionization_potential, p_, qspace_in=True)
                 psi_n = Hn0 * probes
 
+
                 # Only propagate this wave to the exit surface if it is deemed
-                # to contribute significantly (above a user-determined threshhold)
-                # to the image. Pass threshhold = None to disable this feature
-                if threshhold is not None:
+                # to contribute significantly (above a user-determined threshold)
+                # to the image. Pass threshold = None to disable this feature
+                if threshold is not None:
                     if torch.sum(amplitude(psi_n)) < trigger[j]:
                         continue
 
-                # Propagate to exit surface
-                psi_n = multislice(
+                psi_exit =  multislice(
                     psi_n,
                     np.arange(i, niterations),
                     propagators,
                     transmission_functions,
                     tiling=tiling,
                     qspace_out=True,
+                    device_type=device_type,
                     subslicing=True,
                     return_numpy=False,
+                    output_to_bandwidth_limit=False,
                 )
 
                 # Perform imaging if requested, otherwise just accumulate diffraction
                 # pattern
                 if image_CTF is None:
-                    output += amplitude(psi_n)
+                    output += amplitude(psi_exit)
                 else:
-                    output += amplitude(torch.ifft(psi_n * image_CTF, signal_ndim=2))
+                    output += amplitude(torch.fft.ifft2(psi_exit * image_CTF))
 
         # Propagate probe one slice
         if i < niterations - 1:
@@ -977,7 +981,6 @@ def transition_potential_multislice(
     if return_numpy:
         return output.cpu().numpy()
     return output
-
 
 def tile_out_ionization_image(image, tiling):
     """

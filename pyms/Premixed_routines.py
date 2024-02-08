@@ -2135,6 +2135,8 @@ def EFSTEM_S(
     extended_app=40,
     GPU_streaming=False,
     batch_size=3,
+    S_offset=False,
+    yield_single_layer=False,
 ):
     """
     Perform an elemental mapping energy-filtered STEM (EFSTEM) simulation using
@@ -2246,6 +2248,13 @@ def EFSTEM_S(
             The multislice algorithm can be performed on multiple scattering
             matrix columns at once to parrallelize computation, this number is
             set by batch_size.
+    S_offset : bool, optional
+        Since the wave field at the entrance surface is used for all atoms in the 
+        given layer, when set to true the wave field at the end of the given slice
+        is used instead.
+    yield_single_layer : bool, optional
+        Returns generator which when looped over returns the wave field from each slice
+        seperately.
     Returns
     -------
     result : (scan_posns, Y,X) array_like
@@ -2414,7 +2423,7 @@ def EFSTEM_S(
         # Update S1
         S1.S = S1.S.to(device)
         S1.Propagate(
-            islice, P, T, subslicing=True, batch_size=batch_size, showProgress=False
+            islice + S_offset, P, T, subslicing=True, batch_size=batch_size, showProgress=False
         )
 
         probes_shifted_expanded_propagated = torch.matmul(
@@ -2430,7 +2439,7 @@ def EFSTEM_S(
         
         # Update S2
         S2.Propagate(
-            niterations - islice, P, T, subslicing=True, batch_size=batch_size, showProgress=False, transpose=True,
+            niterations - islice - S_offset, P, T, subslicing=True, batch_size=batch_size, showProgress=False, transpose=True,
         )
         
         S2.S = S2.S.to(device)
@@ -2451,6 +2460,9 @@ def EFSTEM_S(
             (ionization_sites[:, 2]% 1.0 >= zmin)
             & (ionization_sites[:, 2]% 1.0 < zmax)
         )
+
+        if yield_single_layer:
+            wo_S2 = torch.zeros(output.shape)
 
         for atom in atoms_in_slice[0]:
 
@@ -2481,6 +2493,22 @@ def EFSTEM_S(
                                     )**2
                             ,dim=0).cpu()
 
+            if yield_single_layer:
+                wo_S2[..., -S2.beams[0], -S2.beams[1]] += torch.sum(
+                             torch.abs(
+                                    torch.fft.fft2(psi_n)[..., -S2.beams[0], -S2.beams[1]]
+                                    # bandwidth_limit_array_torch(psi_n, limit=extended_app / wavev(eV) / 2, qspace_in=False, qspace_out=True)
+                                    # psi_n
+                                )**2
+                        ,dim=0).cpu() / np.prod(gridshape)
+
+        if yield_single_layer:
+            a = torch.clone(output)
+            b = torch.clone(wo_S2)
+            output *= 0
+            wo_S2 *= 0
+
+            yield b, a
 
         ionization_potentials_shifted_expanded = ionization_potentials_shifted_expanded.to('cpu')
         psi_n = psi_n.to('cpu')
@@ -2492,6 +2520,47 @@ def EFSTEM_S(
 
     return (output*np.prod(gridshape)).to('cpu').type(torch.float32).numpy()
 
+
+def CoM(
+    STEM_images,
+    rsize,
+): 
+    """
+    Returns centre of mass image from
+    first-moment detector. Note, we assume a COM image is 
+    obtained from pixel detector. Takes in array of STEM images
+    at various grid locations and returns image of dimensions of the
+    scan positions.
+
+    STEM_images: (*scan_posns.shape, gridshape)
+        Expects array of STEM images in the shape of the scan positions
+
+    rsize: array-like (2,)
+        Real-space size dimensions of detector
+    """
+    [scanshape_x, scanshape_y, gridshape_x, gridshape_y] = STEM_images.shape
+    scanshape = np.array([scanshape_x, scanshape_y])
+    gridshape = np.array([gridshape_x, gridshape_y])
+
+    [fs_x, fs_y] = fs = gridshape / rsize
+    dk = np.prod(fs)
+    # renormalize patterns
+    # STEM_images_normalization = np.prod(gridshape) / np.apply_over_axes(np.sum, STEM_images, [-2,-1])
+    # STEM_images /= np.sum(STEM_images_normalization)
+
+    # obtain intensity in x and y directions using first-moment detector
+    Ix = np.zeros(scanshape)
+    Iy = np.zeros(scanshape)
+    kx = np.fft.fftfreq(gridshape_x, 1/fs_x)
+    ky = np.fft.fftfreq(gridshape_y, 1/fs_y)
+    kx, ky = np.meshgrid(kx, ky)
+    for i in range(scanshape_x):
+        for j in range(scanshape_y):
+            Ix[i,j] = np.sum(STEM_images[i,j] * kx)
+            Iy[i,j] = np.sum(STEM_images[i,j] * ky)
+
+
+    return Ix, Iy
 
 
 def STEM_EELS_PRISM(

@@ -2444,7 +2444,7 @@ def EFSTEM_S(
         
         S2.S = S2.S.to(device)
 
-        if islice != 0:
+        if islice != 0 or S_offset:
             S2.S = torch.fft.ifft2(S2.S)
 
         probes_shifted_expanded_propagated = probes_shifted_expanded_propagated.to(device)
@@ -2518,7 +2518,8 @@ def EFSTEM_S(
     end_time = time()
     # print(end_time - start_time)
 
-    return (output*np.prod(gridshape)).to('cpu').type(torch.float32).numpy()
+    if not yield_single_layer:
+        return (output*np.prod(gridshape)).to('cpu').type(torch.float32).numpy()
 
 
 def CoM(

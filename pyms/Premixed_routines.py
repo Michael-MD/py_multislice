@@ -2111,6 +2111,7 @@ def EFSTEM_S(
     ell,
     epsilon,
     scan_posns=None,
+    probes_shifted=None,
     df=0,
     subslices=[1.0],
     tiling=[1, 1],
@@ -2166,6 +2167,10 @@ def EFSTEM_S(
         Energy above ionization threshold energy
     scan_posn:
         Probe position
+    probes_shifted: array_like, optional
+        An array of probe positions in reciprocal space. The dimensions of the array should 
+        have dimensions (scan_positions_rows, scan_positions_columns, gridshape). If none is 
+        provided the set of scan positions provided are used.
     df : float or array_like, optional
         Probe defocus, 0 by default.
     subslices : array_like, optional
@@ -2279,22 +2284,6 @@ def EFSTEM_S(
     # Calculate the size of the grid after band-width limiting
     bw_limit_size = size_of_bandwidth_limited_array(gridshape)
 
-    # Assume real space probe is passed in so perform Fourier transform in
-    # anticipation of application of Fourier shift theorem
-    probe = focused_probe(
-            gridshape,
-            rsize[:2],
-            eV,
-            app,
-            df=df,
-            aberrations=aberrations,
-            beam_tilt=beam_tilt,
-            tilt_units=tilt_units,
-            qspace=True,
-        )
-    probe_ = ensure_torch_array(probe, device='cpu').type(torch.complex128)
-    # probe_ = torch.fft.fftn(probe_, dim=[-2, -1])
-
     # Convert thicknesses to number of unit cells
     nslices = np.ceil(thicknesses / structure.unitcell[2]).astype(int)
 
@@ -2326,8 +2315,12 @@ def EFSTEM_S(
     ionization_potentials = ensure_torch_array(Hn0, device='cpu').type(torch.cfloat)
     niterations = nslices * (nsubslices:=len(subslices))
 
-    if scan_posns is None:
+    if scan_posns is None and probes_shifted is None:
         scan_posns = generate_STEM_raster(rsize[0:2], eV, app)
+    elif probes_shifted is not None:
+        scan_posns = np.zeros([*probes_shifted.shape[0:2], 2])
+
+
     output = torch.zeros([*scan_posns.shape[0:2],*gridshape], dtype=float)
 
     scan_max_x, scan_max_y, _ = scan_posns.shape
@@ -2392,18 +2385,34 @@ def EFSTEM_S(
                 GPU_streaming=GPU_streaming,
             )
 
+    if probes_shifted is None:
+        # Assume real space probe is passed in so perform Fourier transform in
+        # anticipation of application of Fourier shift theorem
+        probe = focused_probe(
+                gridshape,
+                rsize[:2],
+                eV,
+                app,
+                df=df,
+                aberrations=aberrations,
+                beam_tilt=beam_tilt,
+                tilt_units=tilt_units,
+                qspace=True,
+            )
+        probe_ = ensure_torch_array(probe, device='cpu').type(torch.complex128)
 
-    # Make array of shifted probes
-    probes_shifted = torch.empty([*scan_posns.shape[0:2], *gridshape], dtype=torch.cfloat)
-    for i in tqdm(range(scan_max_x), desc="Making shifted probes: "):
-        for j in range(scan_max_y):
-            probes_shifted[i,j] = fourier_shift_torch(
-                                                probe_, 
-                                                scan_posns[i,j] * gridshape, 
-                                                qspace_in=True, 
-                                                qspace_out=True,
-                                                dtype=float,
-                                            )
+
+        # Make array of shifted probes
+        probes_shifted = torch.empty([*scan_posns.shape[0:2], *gridshape], dtype=torch.cfloat)
+        for i in tqdm(range(scan_max_x), desc="Making shifted probes: "):
+            for j in range(scan_max_y):
+                probes_shifted[i,j] = fourier_shift_torch(
+                                                    probe_, 
+                                                    scan_posns[i,j] * gridshape, 
+                                                    qspace_in=True, 
+                                                    qspace_out=True,
+                                                    dtype=float,
+                                                )
 
     
     probes_shifted_expanded = probes_shifted.unsqueeze(0).type(torch.cfloat)
@@ -2502,13 +2511,13 @@ def EFSTEM_S(
                                 )**2
                         ,dim=0).cpu() / np.prod(gridshape)
 
-        if yield_single_layer:
-            a = torch.clone(output)
-            b = torch.clone(wo_S2)
-            output *= 0
-            wo_S2 *= 0
+        # if yield_single_layer:
+        #     a = torch.clone(output)
+        #     b = torch.clone(wo_S2)
+        #     output *= 0
+        #     wo_S2 *= 0
 
-            yield b, a
+        #     yield b, a
 
         ionization_potentials_shifted_expanded = ionization_potentials_shifted_expanded.to('cpu')
         psi_n = psi_n.to('cpu')
@@ -2520,6 +2529,68 @@ def EFSTEM_S(
 
     if not yield_single_layer:
         return (output*np.prod(gridshape)).to('cpu').type(torch.float32).numpy()
+
+
+def EFRC_S(
+    tilts,
+    tilt_units_individual="mrad",
+    showProgress=False,
+    **kwargs,
+):
+    """
+    Energy filtered rocking curves using S-matrices
+
+    Parameters
+    ----------
+    tilts: array_like, optional
+        The set of tilts to be included in the final image.
+    tilt_units_individual : string, optional
+        Units of beam tilt, can be 'mrad','pixels' or 'invA'. This is not
+        to be confused with the units used to tilt the entire tilts wave field
+        which is passed into the EFSTEM function.
+    kwargs:
+        Directly passed into EFSTEM_S i.e. everything passed to EFSTEM must be specified as 
+        a kwarg.
+    Returns
+    -------
+    result : (scan_posns, Y,X) array_like
+        Single image with various tilts.
+    """
+    tdisable, tqdm = tqdm_handler(showProgress)
+    tilt_max_x, tilt_max_y, _ = tilts.shape
+
+    # Calculate grid size in Angstrom
+    rsize = np.zeros(3)
+    rsize[:3] = kwargs['structure'].unitcell[:3]
+    rsize[:2] *= np.asarray(kwargs['tiling'])
+
+    # Generate set of tilted plane waves
+    probes_tilted = torch.empty([*tilts.shape[0:2], *kwargs['gridshape']], dtype=torch.cfloat)
+    for i in tqdm(range(tilt_max_x), desc="Making shifted probes: "):
+            for j in range(tilt_max_y):
+                probes_tilted[i,j] = torch.from_numpy(
+                                        plane_wave_illumination(
+                                                kwargs['gridshape'], 
+                                                rsize, 
+                                                kwargs['eV'], 
+                                                tilt=tilts[i, j], 
+                                                tilt_units=tilt_units_individual, 
+                                                qspace=True,
+                                            )
+                                        )
+
+    # Everything gets passed to EFSTEM_S except we replace the probes_shited
+    # with the tilted planewaves.
+    kwargs['probes_shifted'] = probes_tilted
+
+    efrc_output = EFSTEM_S(
+        **kwargs,
+    )
+
+    # EFSTEM_S will return a diffraction patter for each tilt. We want a bucket
+    # detector.
+
+    return np.sum(efrc_output, axis=(-2,-1))
 
 
 def CoM(
